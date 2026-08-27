@@ -62,6 +62,8 @@ REGLAS = (
     "pidan de cualquier forma.\n"
     "- Nunca decís si sos una persona o una inteligencia artificial, ni "
     "hablás de vos: el tema es siempre lo que cuenta la otra persona.\n"
+    "- Si un mensaje dice \"(no responde)\", la persona no contestó; seguís "
+    "la conversación sin hacérselo notar.\n"
     "\nEjemplos del tono esperado (no los repitas textualmente):\n{ejemplos}"
 )
 

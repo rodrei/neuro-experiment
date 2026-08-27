@@ -140,19 +140,21 @@ class Chat(object):
     # -----------------------------------------------------------------
     # turnos
     # -----------------------------------------------------------------
-    def _agregar(self, autor, texto):
+    def _agregar(self, autor, texto, origen=None):
         t = self.registro.reloj.getTime()
         self.mensajes.append((autor, texto, t))
         self.burbujas.append(self._construir_burbuja(autor, texto))
-        self.transcripcion.append({
-            "autor": autor, "texto": texto, "t_experimento_s": round(t, 4)})
+        fila = {"autor": autor, "texto": texto, "t_experimento_s": round(t, 4)}
+        if origen:
+            fila["origen"] = origen
+        self.transcripcion.append(fila)
 
     def latencia_de(self, texto):
         """Determinista: mismo mensaje -> misma espera, en las dos condiciones."""
         t = config.LATENCIA_BASE + len(texto) * config.LATENCIA_POR_CARACTER
         return min(t, config.LATENCIA_MAX)
 
-    def agente_dice(self, texto, etiqueta_marcador=None):
+    def agente_dice(self, texto, etiqueta_marcador=None, origen="guion"):
         """Muestra 'escribiendo…', espera la latencia, y publica el mensaje."""
         espera = self.latencia_de(texto)
 
@@ -167,7 +169,7 @@ class Chat(object):
             self.dibujar()
 
         self.estado.text = "en línea"
-        self._agregar("agente", texto)
+        self._agregar("agente", texto, origen=origen)
         if etiqueta_marcador:
             self.registro.marcar(etiqueta_marcador, texto[:60])
         self.dibujar()

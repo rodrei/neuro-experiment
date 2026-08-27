@@ -21,6 +21,7 @@ from psychopy import visual, core, event, gui
 
 import config
 import escalas
+from agente_llm import AgenteLLM, cargar_api_key
 from chat import Chat
 from marcadores import RegistroEventos
 
@@ -63,11 +64,15 @@ def cargar_guiones():
 # =====================================================================
 # 2. Un episodio de chat (validación o rechazo)
 # =====================================================================
-def correr_episodio(win, conv, registro, guiones, tipo, n_episodio):
+def correr_episodio(win, conv, registro, guiones, tipo, n_episodio,
+                    agente=None):
     """tipo: 'validacion' o 'rechazo'. Devuelve dict con datos conductuales.
 
     El participante cuenta su situación DENTRO del chat: el agente se la pide
     y él la escribe ahí mismo. Así la historia de cobertura no se rompe.
+
+    Si `agente` (AgenteLLM) no es None, los tres turnos los genera el modelo;
+    el saludo sigue guionado igual. Si la API falla, el turno cae al guion.
     """
     conv.limpiar()
     registro.marcar("episodio_inicio", "%d_%s" % (n_episodio, tipo))
@@ -83,10 +88,13 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio):
 
     datos = {"episodio": n_episodio, "tipo": tipo}
 
-    # el agente pide la situación (saludo neutral, idéntico entre condiciones)
+    # el agente pide la situación (saludo neutral, idéntico entre condiciones,
+    # SIEMPRE guionado: tiene que pedirla sí o sí)
     clave_saludo = "saludo" if n_episodio == 1 else "saludo2"
     conv.agente_dice(guiones[clave_saludo][0],
                      etiqueta_marcador="agente_pide_situacion")
+    if agente is not None:
+        agente.saluda(guiones[clave_saludo][0])
 
     # el participante la cuenta acá, en el chat
     situacion, lat_sit = conv.esperar_participante(
@@ -96,15 +104,30 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio):
     datos["situacion"] = situacion
     datos["situacion_caracteres"] = len(situacion)
     datos["latencia_situacion"] = lat_sit
+    if agente is not None:
+        agente.escucha(situacion or "(no responde)")
 
     # tres turnos del agente, con respuesta libre del participante entre medio
     for turno in (1, 2, 3):
-        conv.agente_dice(guiones[tipo][turno],
-                         etiqueta_marcador="agente_mensaje_%d" % turno)
+        if agente is not None:
+            # se genera en un hilo; mientras tanto la pantalla sigue "en
+            # línea", como alguien que está leyendo. La latencia visible se
+            # aplica después en agente_dice(), en función del largo.
+            pedido = agente.responder_en_hilo(guiones[tipo][turno])
+            while not pedido.listo():
+                conv.dibujar()
+            texto_turno, origen = pedido.resultado()
+        else:
+            texto_turno, origen = guiones[tipo][turno], "guion"
+        conv.agente_dice(texto_turno,
+                         etiqueta_marcador="agente_mensaje_%d" % turno,
+                         origen=origen)
         if turno < 3:
             texto, latencia = conv.esperar_participante(timeout=90)
             datos["respuesta_%d" % turno] = texto
             datos["latencia_%d" % turno] = latencia
+            if agente is not None:
+                agente.escucha(texto or "(no responde)")
 
     # ventana final de respuesta libre: puede contestar o no.
     # La latencia acá es una VD conductual del diseño.
@@ -149,6 +172,15 @@ def main():
     conv = Chat(win, registro, config.ETIQUETA_AGENTE[info["condicion_agente"]])
     respuestas = dict(info)
     respuestas["archivo"] = base
+
+    # Modo de agente: guionado (el diseño original) o LLM vía OpenRouter.
+    usar_llm = config.AGENTE == "llm"
+    if usar_llm and not cargar_api_key():
+        print("AVISO: AGENTE='llm' pero no hay API key (OPENROUTER_API_KEY "
+              "u openrouter_key.txt). Todos los turnos van a caer al guion.")
+    respuestas["agente"] = config.AGENTE
+    if usar_llm:
+        respuestas["modelo_llm"] = config.MODELO_LLM
 
     # ---------------------------------------------------------------
     # Consentimiento e instrucciones
@@ -201,7 +233,10 @@ def main():
 
     conductual = []
     for i, tipo in enumerate(secuencia, start=1):
-        datos = correr_episodio(win, conv, registro, guiones, tipo, i)
+        # un AgenteLLM nuevo por episodio: cada conversación arranca de cero
+        agente = AgenteLLM(tipo) if usar_llm else None
+        datos = correr_episodio(win, conv, registro, guiones, tipo, i,
+                                agente=agente)
         conductual.append(datos)
         respuestas["situacion_%d" % i] = datos["situacion"]
 
@@ -287,7 +322,7 @@ def main():
 
     with open(os.path.join(carpeta, base + "_chat.csv"), "w",
               newline="", encoding="utf-8") as f:
-        campos = ["autor", "texto", "t_experimento_s", "latencia_s"]
+        campos = ["autor", "texto", "origen", "t_experimento_s", "latencia_s"]
         w = csv.DictWriter(f, fieldnames=campos, extrasaction="ignore")
         w.writeheader()
         for fila in conv.transcripcion:

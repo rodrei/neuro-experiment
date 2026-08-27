@@ -7,3 +7,6 @@ __pycache__/
 
 # Datos de participantes: nunca al repo (privacidad)
 datos/
+
+# Credenciales
+openrouter_key.txt
