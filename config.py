@@ -71,6 +71,25 @@ COBERTURA = {
 }
 
 # =====================================================================
+# AGENTE
+# =====================================================================
+# "guionado" -> los mensajes salen de stim/guiones.csv (el diseño original:
+#               contenido y latencia idénticos entre condiciones).
+# "llm"      -> los genera un modelo vía OpenRouter (ver agente_llm.py).
+#               El saludo que pide la situación sigue guionado igual, y si
+#               la API falla el turno cae al guion. OJO: modo experimental,
+#               no calibrado con el comité de ética; lo que escribe el
+#               participante viaja a OpenRouter y al proveedor del modelo.
+# La key se lee de OPENROUTER_API_KEY o del archivo openrouter_key.txt.
+AGENTE = "guionado"
+
+MODELO_LLM         = "anthropic/claude-haiku-4.5"
+TEMPERATURA_LLM    = 0.7
+MAX_TOKENS_LLM     = 300     # tope de generación (la limpieza recorta después)
+MAX_CARACTERES_LLM = 350     # largo máximo del mensaje mostrado
+TIMEOUT_LLM        = 20      # s de espera de la API antes de caer al guion
+
+# =====================================================================
 # SINCRONIZACIÓN CON EL EQUIPO FISIOLÓGICO
 # =====================================================================
 # "csv"      -> sólo log de eventos con timestamps (sirve para Empatica E4,
