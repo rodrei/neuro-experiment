@@ -33,6 +33,8 @@ ventana chica y tiempos cortos. Para correr participantes, ponerlo en `False`.
 | `chat.py` | Motor de la interfaz de chat (burbujas, "escribiendo…", turnos) |
 | `escalas.py` | Instrucciones, SUDS, SAM, autenticidad, PANAS, texto libre |
 | `marcadores.py` | Marcadores de evento y sincronización con el equipo fisiológico |
+| `agente_llm.py` | Agente por LLM (OpenRouter), alternativa opt-in al guionado |
+| `test_agente_llm.py` | Tests del agente LLM (`python3 -m unittest test_agente_llm`) |
 | `config.py` | **Todos los parámetros ajustables viven acá** |
 | `stim/guiones.csv` | Banco de mensajes del agente |
 | `stim/panas.csv` | Los 20 ítems del PANAS con su subescala |
@@ -89,6 +91,35 @@ justo antes de medirla.
 > después de haber recibido el rechazo, el rechazo puede contaminar qué decide
 > contar. Como el orden de retroalimentación está contrabalanceado, ese arrastre
 > queda repartido entre condiciones y no sesga el contraste principal.
+
+---
+
+## Modo LLM (experimental, apagado por defecto)
+
+Con `AGENTE = "llm"` en `config.py`, los tres turnos de cada episodio los
+genera un modelo de lenguaje vía OpenRouter en vez de salir de
+`stim/guiones.csv`. El saludo que pide la situación sigue guionado, el flujo
+y los CSVs no cambian, y cada mensaje del agente queda registrado con su
+`origen` (`guion` / `llm` / `fallback`) en `_chat.csv`.
+
+- **Key:** variable `OPENROUTER_API_KEY` o archivo `openrouter_key.txt` en la
+  raíz (gitignoreado). Sin key, todo cae al guion y se avisa por consola.
+- **Robustez:** si la API falla o tarda más de `TIMEOUT_LLM`, el turno sale
+  del guion fijo y el experimento sigue; nunca se cae.
+- **Latencia:** el modelo genera mientras el estado dice "en línea"; después
+  se muestra "escribiendo…" el tiempo de siempre (función del largo del
+  mensaje), así que la espera visible sigue pareciendo humana.
+- **Probar los prompts sin abrir PsychoPy:** `python3 agente_llm.py` abre un
+  chat de consola.
+- **Tests** (sin red, con transporte inyectado): `python3 -m unittest test_agente_llm`.
+
+> **Ojo (metodología):** este modo rompe deliberadamente dos controles del
+> diseño original —contenido idéntico entre participantes y latencia
+> balanceada entre ramas— y lo que escribe el participante viaja a OpenRouter
+> y al proveedor del modelo (tiene que estar en el consentimiento). El guion
+> de rechazo generado en vivo tampoco está calibrado con el comité de ética.
+> Por eso el default es `"guionado"`: usar `"llm"` para pilotos/demos hasta
+> que el grupo lo decida.
 
 ---
 

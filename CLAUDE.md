@@ -21,7 +21,8 @@ PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 \
 O abrir `estudio1.py` en PsychoPy Coder y Run. Salir en cualquier momento: **Ctrl+Q**.
 
 - `MODO_DEMO = True` en `config.py` (default): ventana chica y tiempos cortos, el flujo entero se prueba en ~3 min. Ponerlo en `False` para participantes reales.
-- No hay suite de tests. Verificación usada hasta ahora: compilar los módulos con el Python de PsychoPy (`py_compile`) y auditar el flujo completo sin interacción. El recorrido interactivo real (tipear, Enter, sliders con mouse) sólo se prueba a mano.
+- Tests del agente LLM (Python puro, sin red ni PsychoPy): `python3 -m unittest test_agente_llm -v`. Para el resto no hay suite: se compilan los módulos con el Python de PsychoPy (`py_compile`) y el recorrido interactivo (tipear, Enter, sliders con mouse) se prueba a mano.
+- Chat de consola para iterar los prompts del LLM: `python3 agente_llm.py`.
 
 ## Arquitectura
 
@@ -31,13 +32,14 @@ Cinco módulos planos, sin paquete:
 - `chat.py` — clase `Chat`: interfaz de conversación dibujada a mano con `TextBox2` (burbujas, "escribiendo…", caja de entrada). Las burbujas se construyen una sola vez por mensaje y se cachean (construirlas por frame tira los fps al piso).
 - `escalas.py` — pantallas de texto y autoinforme: SUDS, SAM, autenticidad, PANAS (grilla), texto libre. `bloque_medidas()` arma el bloque completo en orden fijo SUDS → SAM → autenticidad → PANAS.
 - `marcadores.py` — `RegistroEventos`: siempre loguea a CSV (`t_experimento_s` + `t_unix`); opcionalmente reenvía cada marcador por LSL / serie / paralelo según `config.BACKEND_MARCADORES`. Si el backend falla, avisa y sigue sólo con CSV (nunca voltea el experimento).
-- `config.py` — **todos los parámetros ajustables viven acá**: tiempos, latencia del agente, textos de cobertura, códigos de marcador, colores.
+- `agente_llm.py` — agente por LLM vía OpenRouter (opt-in con `config.AGENTE = "llm"`; default `"guionado"`). Un `AgenteLLM` nuevo por episodio; el saludo sigue guionado; si la API falla el turno cae al guion (`origen` queda en `_chat.csv`). El transporte HTTP se inyecta, por eso es testeable sin red (`test_agente_llm.py`). Sólo stdlib (`urllib`): no agregar dependencias.
+- `config.py` — **todos los parámetros ajustables viven acá**: tiempos, latencia del agente, textos de cobertura, códigos de marcador, colores, modo/modelo del agente LLM.
 
 Estímulos en `stim/`: `guiones.csv` (mensajes del agente: saludo/saludo2 + 3 turnos de validación + 3 de rechazo) y `panas.csv` (20 ítems con subescala). Salida en `datos/`: cuatro CSVs por participante (`_eventos`, `_respuestas`, `_conductual`, `_chat`) con prefijo `S1_<id>_<condición>_<fecha>`.
 
 ## Invariantes del diseño experimental (no romper)
 
-Son decisiones metodológicas, no de código; cambiarlas altera el experimento:
+Son decisiones metodológicas, no de código; cambiarlas altera el experimento. Valen para el modo default `"guionado"`; el modo `"llm"` rompe deliberadamente los invariantes 1 y 2 y por eso es opt-in, sólo para pilotos/demos hasta que el grupo y el comité de ética lo evalúen (ver README, "Modo LLM").
 
 1. **El agente está totalmente guionado** y el contenido es idéntico entre condiciones Humano/IA; lo único que varía es la fuente atribuida (historia de cobertura + etiqueta en la barra del chat).
 2. **La latencia del agente es determinista**: `1.2 s + 0.045 s × caracteres` (tope 12 s). Los guiones están balanceados en extensión entre validación y rechazo para que la espera total quede pareja. Si se editan los guiones, re-balancear largos.
