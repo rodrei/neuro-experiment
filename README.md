@@ -6,19 +6,16 @@ Implementación del **Estudio 1**: 2 × 2 mixto, Tipo de agente (Humano vs. IA)
 entre-sujetos y Retroalimentación (Validación vs. Rechazo) intra-sujeto
 contrabalanceada.
 
-> **Esta carpeta (`psychopy_estudio1_v2`) es la versión vigente.**
-> Reemplaza a `psychopy_estudio1`, que quedó desactualizada. Ver `LEEME_cambios.txt`.
-
 ---
 
 ## Cómo correrlo
 
 Abrir **PsychoPy Coder** (no Builder — ver más abajo), abrir `estudio1.py`, Run.
 
-Desde terminal:
+Desde terminal, parado en esta carpeta:
 
 ```bash
-cd "psychopy_estudio1_v2" && PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python estudio1.py
+PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python estudio1.py
 ```
 
 Salir en cualquier momento: **Ctrl + Q**.

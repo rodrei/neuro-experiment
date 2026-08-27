@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Datos de participantes: nunca al repo (privacidad)
+datos/
