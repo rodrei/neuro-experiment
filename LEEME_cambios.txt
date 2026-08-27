@@ -1,0 +1,80 @@
+ARCHIVOS CORREGIDOS — Estudio 1 PsychoPy
+=========================================
+
+Qué cambió respecto de la versión anterior:
+
+1. BUG DE LA LÍNEA BASE (corregido)
+   Antes, el bloque de medidas de línea base incluía los cuatro ítems de
+   autenticidad ("Sentí que mi interlocutor entendió genuinamente lo que le
+   conté", etc.). Se preguntaban ANTES del primer chat, cuando todavía no
+   existía ningún interlocutor. Ahora la línea base pregunta sólo SUDS +
+   SAM valencia + SAM arousal; los ítems de autenticidad aparecen únicamente
+   después de cada conversación.
+   -> escalas.py: bloque_medidas() ahora recibe incluir_autenticidad
+   -> estudio1.py: la llamada de línea base pasa incluir_autenticidad=False
+
+2. LAS SITUACIONES SE CUENTAN DENTRO DEL CHAT
+   Antes se pedían las dos situaciones por adelantado, en dos pantallas del
+   software, y después se "pegaban" en el chat. Ahora el interlocutor las
+   pide dentro de la conversación y el participante las escribe ahí mismo.
+   -> guiones.csv: nueva fila "saludo2" para el segundo episodio
+   -> chat.py: esperar_participante() acepta minimo_caracteres (120) y
+      muestra cuánto falta; ya no existe insertar_del_participante()
+   -> estudio1.py: se eliminaron las dos pantallas de situación previas
+
+3. MARCADORES NUEVOS
+   19 = agente_pide_situacion
+   18 = situacion_revelada
+   Permiten segmentar el EDA durante la revelación, que ahora es un momento
+   del experimento y no un trámite previo.
+
+4. DATOS NUEVOS en el CSV conductual
+   situacion, situacion_caracteres, latencia_situacion
+
+CÓMO INSTALARLOS
+----------------
+Reemplazá los archivos de la carpeta del proyecto en Google Drive por estos.
+Desde tu Terminal:
+
+  cp ~/Desktop/psychopy_estudio1_CORREGIDO/*.py "$HOME/Library/CloudStorage/GoogleDrive-elena.fumagalli@incae.edu/Mi unidad/Neurodiplo/Neurodiplo Grupo 3 AI companions/pre-entrega #3/psychopy_estudio1/"
+  cp ~/Desktop/psychopy_estudio1_CORREGIDO/stim/guiones.csv "$HOME/Library/CloudStorage/GoogleDrive-elena.fumagalli@incae.edu/Mi unidad/Neurodiplo/Neurodiplo Grupo 3 AI companions/pre-entrega #3/psychopy_estudio1/stim/"
+
+(Yo no pude copiarlos: Claude Code perdió el permiso de macOS para acceder a
+la carpeta de Google Drive.)
+
+
+5. PANAS AGREGADO (faltaba)
+   20 ítems (10 PA / 10 NA) en el orden canónico de Watson, Clark & Tellegen
+   (1988), versión ESTADO ("en este momento"). Se administra en los tres
+   momentos: línea base, post-episodio 1 y post-episodio 2.
+   -> stim/panas.csv : los 20 ítems con su subescala
+   -> escalas.py     : preguntar_panas()
+
+   Dos decisiones de diseño:
+
+   a) Va en GRILLA de 10 ítems por pantalla (2 páginas), no de a un ítem por
+      pantalla. Con 3 administraciones son 60 respuestas; una por pantalla
+      estiraría el intervalo entre episodios lo suficiente como para que la
+      activación fisiológica se disipe antes del segundo.
+
+   b) Va ÚLTIMO dentro de cada bloque de medidas: SUDS -> SAM ->
+      autenticidad -> PANAS. SUDS y SAM son las medidas sensibles al tiempo
+      (hay que tomarlas apenas termina el episodio); el PANAS, al ser largo,
+      no puede ir adelante.
+
+   Se guardan los 20 ítems y además PA_total y NA_total (rango 10-50 c/u).
+   Marcadores nuevos: 52 = panas_inicio, 53 = panas_fin.
+
+   PENDIENTE: la traducción de los ítems sigue la adaptación al español
+   rioplatense de Moriondo et al. (2012), pero la escribí de memoria.
+   HAY QUE COTEJAR LOS 20 TÉRMINOS CON EL ARTÍCULO ORIGINAL antes de correr
+   participantes.
+
+6. BUG DE PSYCHOPY ESQUIVADO (importante)
+   La grilla del PANAS usa style="rating", NO style="radio". En PsychoPy,
+   Slider.categorical es True para TODO slider de estilo radio, y en ese caso
+   .rating devuelve self.labels[...] en vez del número:
+     - con labels=None  -> TypeError al primer clic del participante
+     - con labels=[""]*5 -> guarda '' en vez del valor, SIN avisar
+   Con style="rating" queda categorical=False y devuelve el número. Si alguien
+   toca esto, que no lo pase a "radio".
