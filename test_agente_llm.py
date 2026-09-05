@@ -9,11 +9,13 @@ al guion, y limpieza del texto.
 """
 
 import os
+import ssl
 import tempfile
 import threading
 import unittest
 
-from agente_llm import AgenteLLM, cargar_api_key, limpiar_respuesta
+from agente_llm import (AgenteLLM, _contexto_ssl, cargar_api_key,
+                        limpiar_respuesta)
 
 
 def transporte_fijo(respuesta):
@@ -168,6 +170,22 @@ class TestResponderEnHilo(unittest.TestCase):
         self.assertTrue(pedido.listo())
         self.assertEqual(agente.historial[-1]["content"], "respuesta lenta")
 
+
+
+class TestContextoSSL(unittest.TestCase):
+    """El Python embebido de PsychoPy no encuentra el bundle de CAs en la
+    ruta que busca OpenSSL: sin contexto propio, toda llamada a OpenRouter
+    muere en CERTIFICATE_VERIFY_FAILED y el turno cae al guion. Estos tests
+    fallan con el contexto por defecto si se corren con el Python de
+    PsychoPy, que es donde importa."""
+
+    def test_el_contexto_trae_autoridades_cargadas(self):
+        self.assertTrue(_contexto_ssl().get_ca_certs())
+
+    def test_el_contexto_verifica_el_certificado(self):
+        contexto = _contexto_ssl()
+        self.assertEqual(contexto.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(contexto.check_hostname)
 
 class TestApiKey(unittest.TestCase):
 

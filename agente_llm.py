@@ -22,6 +22,7 @@ Para iterar los prompts sin abrir PsychoPy:  python3 agente_llm.py
 import csv
 import json
 import os
+import ssl
 import threading
 import urllib.request
 
@@ -106,6 +107,30 @@ def cargar_api_key(carpeta=AQUI):
     return key or None
 
 
+def _contexto_ssl():
+    """Contexto TLS armado con una autoridad certificante que exista en este
+    intérprete.
+
+    El Python embebido de PsychoPy no tiene el bundle de certificados en la
+    ruta donde lo busca OpenSSL, así que el contexto por defecto no puede
+    validar a OpenRouter. certifi viene adentro de PsychoPy; si no está, se
+    usa el bundle del sistema. La verificación no se desactiva nunca: por
+    este canal viaja lo que escribe el participante.
+    """
+    candidatos = []
+    try:
+        import certifi
+    except ImportError:
+        pass
+    else:
+        candidatos.append(certifi.where())
+    candidatos.append("/etc/ssl/cert.pem")
+    for ruta in candidatos:
+        if os.path.exists(ruta):
+            return ssl.create_default_context(cafile=ruta)
+    return ssl.create_default_context()
+
+
 def _transporte_openrouter(payload):
     """Transporte real: manda el payload y devuelve el texto de la respuesta.
 
@@ -121,7 +146,8 @@ def _transporte_openrouter(payload):
         data=json.dumps(payload).encode("utf-8"),
         headers={"Authorization": "Bearer " + key,
                  "Content-Type": "application/json"})
-    with urllib.request.urlopen(pedido, timeout=config.TIMEOUT_LLM) as resp:
+    with urllib.request.urlopen(pedido, timeout=config.TIMEOUT_LLM,
+                                context=_contexto_ssl()) as resp:
         datos = json.loads(resp.read().decode("utf-8"))
     return datos["choices"][0]["message"]["content"]
 
@@ -162,13 +188,20 @@ class AgenteLLM(object):
             "max_tokens": config.MAX_TOKENS_LLM,
             "temperature": config.TEMPERATURA_LLM,
         }
+        motivo = None
         try:
             crudo = self.transporte(payload)
             texto = limpiar_respuesta(crudo, config.MAX_CARACTERES_LLM)
-        except Exception:
+        except Exception as error:
             texto = ""
+            motivo = "%s: %s" % (type(error).__name__, error)
         origen = "llm"
         if not texto.strip():
+            # Sin este aviso, una key vencida, una caída de red y un problema
+            # de certificados se ven todos igual desde la pantalla: como un
+            # experimento guionado.
+            print("AVISO: turno %s al guion (%s)."
+                  % (self.tipo, motivo or "el modelo devolvió texto vacío"))
             texto, origen = guion_fallback, "fallback"
         self.historial.append({"role": "assistant", "content": texto})
         return texto, origen
