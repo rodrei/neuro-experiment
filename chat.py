@@ -24,6 +24,7 @@ caro; hacerlo en cada frame tiraba los fps al piso.
 from psychopy import visual, core, event
 
 import config
+import escalas
 
 RELLENO_BURBUJA = 0.018
 INTERLINEA = 1.06          # medido sobre TextBox2: paso de línea / letterHeight
@@ -78,6 +79,14 @@ class Chat(object):
             color=config.COLOR_TENUE, pos=(self.x_izq + 0.72, -0.455))
 
         self.raton = event.Mouse(win=win)
+        self.salto = escalas.boton_salto(win)
+
+    def _salto_pedido(self):
+        """True si en modo test se pidió saltear la espera o el turno."""
+        if escalas.salto_pedido(self.salto, self.raton):
+            escalas.soltar_raton(self.win, self.raton)
+            return True
+        return False
 
     # -----------------------------------------------------------------
     # construcción de burbujas
@@ -135,6 +144,7 @@ class Chat(object):
             self.boton.draw()
             self.boton_txt.draw()
             self.ayuda.draw()
+        escalas.dibujar_salto(self.salto)
         self.win.flip()
 
     # -----------------------------------------------------------------
@@ -162,11 +172,15 @@ class Chat(object):
         fin = core.getTime() + config.DUR_LECTURA_MIN
         while core.getTime() < fin:
             self.dibujar()
+            if self._salto_pedido():
+                break
 
         self.estado.text = "escribiendo…"
         fin = core.getTime() + espera
         while core.getTime() < fin:
             self.dibujar()
+            if self._salto_pedido():
+                break
 
         self.estado.text = "en línea"
         self._agregar("agente", texto, origen=origen)
@@ -222,14 +236,29 @@ class Chat(object):
             if limite is not None and core.getTime() > limite:
                 if limpio:
                     return self._enviar(limpio, t0, marcador)
-                self.registro.marcar(marcador, "sin respuesta")
-                self.transcripcion.append({
-                    "autor": "participante", "texto": "[sin respuesta]",
-                    "t_experimento_s": round(self.registro.reloj.getTime(), 4)})
-                self.ayuda.text = "Enter para enviar"
-                return "", None
+                return self._sin_respuesta(marcador)
+
+            # modo test: manda lo que haya, y si el mensaje era obligatorio
+            # lo completa, para que la conversación siga teniendo tema
+            if self._salto_pedido():
+                if limpio and suficiente:
+                    return self._enviar(limpio, t0, marcador)
+                if minimo_caracteres:
+                    self.caja.clear()
+                    self.caja.text = ""
+                    return self._enviar(config.TEXTO_RELLENO_TEST, t0, marcador)
+                return self._sin_respuesta(marcador)
 
             self.dibujar()
+
+    def _sin_respuesta(self, marcador):
+        """No contestar es un dato: queda registrado como tal."""
+        self.registro.marcar(marcador, "sin respuesta")
+        self.transcripcion.append({
+            "autor": "participante", "texto": "[sin respuesta]",
+            "t_experimento_s": round(self.registro.reloj.getTime(), 4)})
+        self.ayuda.text = "Enter para enviar"
+        return "", None
 
     def _enviar(self, texto, t0, marcador="participante_mensaje"):
         latencia = core.getTime() - t0

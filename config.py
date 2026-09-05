@@ -15,6 +15,22 @@ MODO_DEMO = True
 PANTALLA_COMPLETA = not MODO_DEMO
 TAMANO_VENTANA = (1280, 800)          # sólo si PANTALLA_COMPLETA = False
 
+# Modo test: cada pantalla suma un botón "Saltar", y TECLA_SALTO hace lo
+# mismo desde el teclado. Sirve para recorrer el flujo entero sin contestar
+# las escalas ni esperar los tiempos. Lo que se saltea queda VACÍO en los
+# CSV (las subescalas del PANAS incompletas no suman total), así que una
+# corrida de test se distingue de una real. NUNCA correr participantes con
+# esto en True: queda registrado en _respuestas.csv como modo_test.
+MODO_TEST = False
+TECLA_SALTO = "f9"
+
+# Con qué se completa un mensaje obligatorio del chat cuando se saltea, para
+# que la conversación siga teniendo de qué agarrarse (sobre todo en modo LLM).
+TEXTO_RELLENO_TEST = (
+    "Ayer discutí fuerte con mi hermana por un tema de familia y quedé muy "
+    "mal. Estuve toda la noche dando vueltas pensando en las cosas que le "
+    "dije y en las que me dijo ella.")
+
 # =====================================================================
 # TIEMPOS (segundos)
 # =====================================================================

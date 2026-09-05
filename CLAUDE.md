@@ -21,6 +21,7 @@ PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 \
 O abrir `estudio1.py` en PsychoPy Coder y Run. Salir en cualquier momento: **Ctrl+Q**.
 
 - `MODO_DEMO = True` en `config.py` (default): ventana chica y tiempos cortos, el flujo entero se prueba en ~3 min. Ponerlo en `False` para participantes reales.
+- `MODO_TEST = True` en `config.py` (default `False`): botón **Saltar** en cada pantalla y tecla `F9` para lo mismo. Recorre el flujo sin contestar nada. Lo salteado queda vacío en los CSV (una subescala incompleta del PANAS no lleva total) y la corrida queda marcada con `modo_test` en `_respuestas.csv`. Los helpers (`boton_salto`, `dibujar_salto`, `salto_pedido`, `soltar_raton`) viven en `escalas.py` y los usan también `chat.py` y `estudio1.py`. `salto_pedido` consulta la tecla siempre con `keyList`, para no vaciar el buffer que necesitan las pantallas con `TextBox2` editable.
 - Tests del agente LLM (Python puro, sin red ni PsychoPy): `python3 -m unittest test_agente_llm -v`. Para el resto no hay suite: se compilan los módulos con el Python de PsychoPy (`py_compile`) y el recorrido interactivo (tipear, Enter, sliders con mouse) se prueba a mano.
 - Chat de consola para iterar los prompts del LLM: `python3 agente_llm.py`.
 

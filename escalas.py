@@ -20,12 +20,59 @@ USAR_IMAGENES_SAM = os.path.isdir(CARPETA_SAM)
 
 
 # ---------------------------------------------------------------------
-def _boton(win, texto, pos=(0, -0.40)):
-    caja = visual.Rect(win, width=0.24, height=0.075, pos=pos,
-                       fillColor=config.COLOR_ACENTO, lineColor=None)
+def _boton(win, texto, pos=(0, -0.40), tamano=(0.24, 0.075), altura=0.026,
+           color=None):
+    caja = visual.Rect(win, width=tamano[0], height=tamano[1], pos=pos,
+                       fillColor=color or config.COLOR_ACENTO, lineColor=None)
     etiqueta = visual.TextStim(win, text=texto, font=config.FUENTE,
-                               height=0.026, color="#FFFFFF", pos=pos)
+                               height=altura, color="#FFFFFF", pos=pos)
     return caja, etiqueta
+
+
+# ---------------------------------------------------------------------
+# Modo test: saltear pantallas
+# ---------------------------------------------------------------------
+# Las usan también chat.py y estudio1.py, para que el botón esté en el mismo
+# lugar en todas las pantallas. Abajo a la derecha: ahí no hay nada en
+# ninguna pantalla, ni siquiera en la relación de aspecto más angosta.
+POS_SALTO = (0.52, -0.455)
+
+
+def boton_salto(win):
+    """Botón 'Saltar' del modo test. Fuera del modo test, (None, None)."""
+    if not config.MODO_TEST:
+        return None, None
+    return _boton(win, "Saltar (%s)" % config.TECLA_SALTO.upper(),
+                  pos=POS_SALTO, tamano=(0.22, 0.055), altura=0.021,
+                  color=config.COLOR_TENUE)
+
+
+def dibujar_salto(boton):
+    """Dibuja el botón de salto, si lo hay."""
+    if boton[0] is not None:
+        boton[0].draw()
+        boton[1].draw()
+
+
+def salto_pedido(boton=(None, None), raton=None):
+    """True si el modo test está activo y se pidió saltear la pantalla.
+
+    La tecla se consulta SIEMPRE con keyList: así event.getKeys() deja el
+    resto del buffer intacto, que es lo que necesitan las pantallas con un
+    TextBox2 editable para seguir recibiendo lo que se tipea.
+    """
+    if not config.MODO_TEST:
+        return False
+    if event.getKeys(keyList=[config.TECLA_SALTO]):
+        return True
+    return bool(boton[0] is not None and raton is not None
+                and raton.isPressedIn(boton[0]))
+
+
+def soltar_raton(win, raton):
+    """Espera a que se suelte el botón: un clic no tiene que saltear dos."""
+    while raton.getPressed()[0]:
+        win.flip()
 
 
 def pantalla_texto(win, texto, pie="Presioná ESPACIO para continuar",
@@ -44,14 +91,20 @@ def pantalla_texto(win, texto, pie="Presioná ESPACIO para continuar",
         win, text=pie, font=config.FUENTE, height=0.024,
         color=config.COLOR_TENUE, pos=(0, -0.42))
 
+    salto = boton_salto(win)
+    raton = event.Mouse(win=win)
     event.clearEvents()
     while True:
         if encabezado:
             encabezado.draw()
         cuerpo.draw()
         aviso.draw()
+        dibujar_salto(salto)
         win.flip()
         if event.getKeys(keyList=["space"]):
+            return
+        if salto_pedido(salto, raton):
+            soltar_raton(win, raton)
             return
 
 
@@ -63,11 +116,17 @@ def cuenta_regresiva(win, duracion, texto="Descansá. Mirá la cruz y tratá de 
     leyenda = visual.TextStim(win, text=texto, font=config.FUENTE, height=0.026,
                               color=config.COLOR_TENUE, pos=(0, -0.32),
                               wrapWidth=1.0)
+    salto = boton_salto(win)
+    raton = event.Mouse(win=win)
     fin = core.getTime() + duracion
     while core.getTime() < fin:
         cruz.draw()
         leyenda.draw()
+        dibujar_salto(salto)
         win.flip()
+        if salto_pedido(salto, raton):
+            soltar_raton(win, raton)
+            return
 
 
 # ---------------------------------------------------------------------
@@ -102,6 +161,7 @@ def preguntar_escala(win, enunciado, ticks, etiquetas, imagenes_sam=None):
     aviso = visual.TextStim(
         win, text="Elegí una opción para continuar", font=config.FUENTE,
         height=0.022, color=config.COLOR_TENUE, pos=(0, -0.30))
+    salto = boton_salto(win)
     raton = event.Mouse(win=win)
     event.clearEvents()
 
@@ -116,8 +176,12 @@ def preguntar_escala(win, enunciado, ticks, etiquetas, imagenes_sam=None):
         else:
             caja.draw()
             etiqueta.draw()
+        dibujar_salto(salto)
         win.flip()
 
+        if salto_pedido(salto, raton):
+            soltar_raton(win, raton)
+            return valor
         if valor is not None and raton.isPressedIn(caja):
             while raton.getPressed()[0]:
                 win.flip()
@@ -145,6 +209,7 @@ def preguntar_texto(win, enunciado, minimo_caracteres=0, alto=0.26):
         win, text="", font=config.FUENTE, height=0.022,
         color=config.COLOR_TENUE, pos=(0, -0.42))
 
+    salto = boton_salto(win)
     raton = event.Mouse(win=win)
     try:
         win.currentEditable = entrada
@@ -165,8 +230,16 @@ def preguntar_texto(win, enunciado, minimo_caracteres=0, alto=0.26):
         if listo:
             caja.draw()
             etiqueta.draw()
+        dibujar_salto(salto)
         win.flip()
 
+        if salto_pedido(salto, raton):
+            soltar_raton(win, raton)
+            try:
+                win.removeEditable(entrada)
+            except Exception:
+                pass
+            return contenido
         if listo and raton.isPressedIn(caja):
             while raton.getPressed()[0]:
                 win.flip()
@@ -280,6 +353,7 @@ def preguntar_panas(win, items_por_pagina=10):
         aviso = visual.TextStim(
             win, text="", font=config.FUENTE, height=0.022,
             color=config.COLOR_TENUE, pos=(0, -0.43))
+        salto = boton_salto(win)
         event.clearEvents()
 
         while True:
@@ -298,8 +372,12 @@ def preguntar_panas(win, items_por_pagina=10):
             else:
                 caja.draw()
                 etiqueta.draw()
+            dibujar_salto(salto)
             win.flip()
 
+            if salto_pedido(salto, raton):
+                soltar_raton(win, raton)
+                break
             if not faltan and raton.isPressedIn(caja):
                 while raton.getPressed()[0]:
                     win.flip()
@@ -308,10 +386,14 @@ def preguntar_panas(win, items_por_pagina=10):
         for it, sl in zip(pagina, sliders):
             respuestas[it["clave"]] = sl.getRating()
 
-    # totales de subescala (rango 10-50 cada una)
+    # totales de subescala (rango 10-50 cada una). Una subescala incompleta
+    # no tiene total: pasa sólo si se salteó la grilla en modo test, y un
+    # total parcial ahí adentro se leería después como un dato válido.
     for sub in ("PA", "NA"):
-        respuestas[sub + "_total"] = sum(
-            respuestas[it["clave"]] for it in items if it["subescala"] == sub)
+        valores = [respuestas[it["clave"]] for it in items
+                   if it["subescala"] == sub]
+        respuestas[sub + "_total"] = (
+            None if any(v is None for v in valores) else sum(valores))
     return respuestas
 
 

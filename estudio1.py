@@ -81,10 +81,16 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio,
     espera = visual.TextStim(
         win, text="Conectando…", font=config.FUENTE, height=0.040,
         color=config.COLOR_TENUE, pos=(0, 0))
+    salto = escalas.boton_salto(win)
+    raton = event.Mouse(win=win)
     fin = core.getTime() + config.DUR_CONECTANDO
     while core.getTime() < fin:
         espera.draw()
+        escalas.dibujar_salto(salto)
         win.flip()
+        if escalas.salto_pedido(salto, raton):
+            escalas.soltar_raton(win, raton)
+            break
 
     datos = {"episodio": n_episodio, "tipo": tipo}
 
@@ -179,6 +185,12 @@ def main():
         print("AVISO: AGENTE='llm' pero no hay API key (OPENROUTER_API_KEY "
               "u openrouter_key.txt). Todos los turnos van a caer al guion.")
     respuestas["agente"] = config.AGENTE
+    respuestas["modo_test"] = config.MODO_TEST
+    if config.MODO_TEST:
+        print("AVISO: MODO_TEST activo. Se puede saltear cada pantalla con "
+              "el botón 'Saltar' o con %s, y lo salteado queda vacío en los "
+              "CSV. No sirve para participantes."
+              % config.TECLA_SALTO.upper())
     if usar_llm:
         respuestas["modelo_llm"] = config.MODELO_LLM
 

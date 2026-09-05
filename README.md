@@ -23,6 +23,15 @@ Salir en cualquier momento: **Ctrl + Q**.
 Por defecto arranca en **modo demo** (`MODO_DEMO = True` en `config.py`):
 ventana chica y tiempos cortos. Para correr participantes, ponerlo en `False`.
 
+Con `MODO_TEST = True` cada pantalla suma un botón **Saltar** abajo a la
+derecha, y **F9** hace lo mismo desde el teclado (`TECLA_SALTO`). Sirve para
+recorrer el flujo entero sin contestar las escalas ni esperar los tiempos: el
+PANAS pide una pulsación por página, y un mensaje obligatorio del chat se
+completa con `TEXTO_RELLENO_TEST`. Lo salteado queda **vacío** en los CSV y
+una subescala incompleta del PANAS no lleva total, así que una corrida de
+test no se confunde con una real; además queda `modo_test` en
+`_respuestas.csv`. Para participantes va en `False`.
+
 ---
 
 ## Los archivos
@@ -176,7 +185,7 @@ Con `style="rating"` queda `categorical=False` y devuelve el número.
 
 ## Pendientes antes de correr participantes
 
-- [ ] **Poner `MODO_DEMO = False`** en `config.py`.
+- [ ] **Poner `MODO_DEMO = False` y `MODO_TEST = False`** en `config.py`.
 - [ ] **Cotejar los 20 ítems del PANAS** con Moriondo et al. (2012). La
       traducción actual se escribió de memoria; términos discutibles:
       "upset" → *alterado/a*, "jittery" → *inquieto/a*, "distressed" → *angustiado/a*.
