@@ -106,9 +106,18 @@ docs/
   Pre-entrega #3 — Diseño experimental.md    # git mv desde la raíz
   superpowers/specs/
 capturas/
+
+Dockerfile            # en la raíz: el build necesita protocolo/, comun/ y web/
+fly.toml
+.dockerignore
 ```
 
 Los movimientos se hacen con `git mv` para no perder el historial.
+
+`Dockerfile` y `fly.toml` van en la **raíz del repositorio**, no dentro de
+`web/`: el contenedor tiene que incluir `protocolo/` y `comun/` además del
+servidor, así que el contexto de build es el repo entero. `.dockerignore`
+excluye `escritorio/`, `datos/`, `capturas/`, `docs/` y `openrouter_key.txt`.
 
 ## 5. `protocolo/` — la fuente de verdad
 
@@ -416,7 +425,7 @@ Es lo más simple para la mitad estática, y rompe la otra mitad:
 Sólo es viable si se abandona la persistencia del lado del servidor (ver la
 variante más abajo).
 
-### fly.io — **recomendado**
+### fly.io — **elegido**
 
 - Contenedor de verdad: la app Flask corre tal cual, sin reescribir nada.
 - **Volumen persistente** montado donde hoy está `datos/`: el diseño de CSV
@@ -425,16 +434,52 @@ variante más abajo).
   certificados, sin parchear el sistema operativo.
 - `fly secrets set OPENROUTER_API_KEY=…` alcanza: `cargar_api_key()` **ya** lee
   esa variable de entorno antes de buscar el archivo. Cero cambios de código.
-- `auto_stop_machines` deja el costo cerca de cero entre demos.
 - Toda la configuración son un `Dockerfile` y un `fly.toml`; el despliegue es
   `fly deploy`.
 
-Contras: una cuenta y una relación de facturación más; el volumen está atado a
-una máquina, así que hay que bajar los CSV con `fly sftp get` después de cada
-demo y no confiar en que queden ahí. Verificar el precio vigente antes de
-comprometerse: el esquema de planes de fly cambió más de una vez.
+#### Costo: cero, por el plan legacy
 
-### VPS — la alternativa sin cuentas nuevas
+fly.io discontinuó el plan gratuito el 7 de octubre de 2024, y las cuentas
+nuevas arrancan en pago por uso con un mínimo de USD 5/mes. **La cuenta de este
+proyecto está en el plan Hobby legacy**, que conserva la asignación gratuita
+anterior. Esa asignación es una **cuota de recursos por organización, no un
+derecho por aplicación**: borrar una app libera la capacidad para la siguiente.
+
+| Asignación legacy | Este proyecto |
+| --- | --- |
+| Hasta 3 VMs `shared-cpu-1x` de 256 MB | Necesita 1. Flask + el cargador ≈ 60–90 MB RSS |
+| 3 GB de volumen persistente (total) | 1 GB: a 16 KB por sesión, ~65.000 sesiones |
+| 100 GB de tráfico saliente (NA/EU) | Unos pocos MB por participante |
+
+Entra con margen: alrededor de un tercio de la asignación de cómputo y un tercio
+de la de almacenamiento.
+
+#### Cuatro trampas que empiezan a facturar en silencio
+
+1. **`fly launch` reserva más de 256 MB por defecto.** Cualquier cosa por encima
+   de 256 MB queda fuera de la asignación. Fijarlo en `fly.toml`
+   (`[[vm]] size = "shared-cpu-1x"`, `memory = "256mb"`).
+2. **Una IPv4 dedicada cuesta USD 2/mes** y no está incluida. La IPv4 compartida
+   es gratis y alcanza para una app HTTP: verificar con `fly ips list` y liberar
+   cualquier IPv4 dedicada.
+3. **Los volúmenes se cobran por capacidad provisionada, no por uso.** Crear el
+   volumen explícitamente de 1 GB; uno más grande consume la asignación aunque
+   esté vacío.
+4. **No cambiar de plan.** La documentación de fly es explícita: salir de un plan
+   legacy es **irreversible**. Hay que rechazar cualquier propuesta del panel de
+   pasar a pago por uso.
+
+Además, desplegar **dentro de la organización existente**: una organización nueva
+no hereda la asignación.
+
+#### Contras que quedan
+
+El volumen está atado a una máquina, así que hay que bajar los CSV con
+`fly sftp get` después de cada demo y no tratarlo como almacenamiento durable. Y
+el texto libre de los participantes vive en infraestructura de terceros: para una
+demo con voluntarios es una nota al pie, pero conviene decirlo en el debriefing.
+
+### VPS — respaldo
 
 Ya está pago y ya existe, así que el costo marginal es cero. El costo es de
 operación: usuario, firewall, Caddy o nginx, unidad de systemd, script de
@@ -449,6 +494,14 @@ diluye, porque ese texto ya viaja a OpenRouter y al proveedor del modelo. Para
 una demo con voluntarios es una nota al pie, no un bloqueo, pero conviene
 decirlo en el debriefing.
 
+### Túnel desde la laptop — respaldo para la presentación
+
+Si el día de la demo fly.io falla, la app Flask corre en la laptop y se expone
+con un túnel (`cloudflared tunnel --url http://localhost:5000`): URL pública con
+HTTPS, gratis, sin cuenta y sin despliegue. Si además el grupo está en la misma
+sala y la presentación la maneja una sola persona, `localhost` alcanza. No
+requiere ningún trabajo extra: la app es la misma.
+
 ### Variante: sin persistencia del lado del servidor
 
 Como la demo es descartable, una tercera opción es que jsPsych le ofrezca al
@@ -459,8 +512,12 @@ la pestaña antes de tiempo.
 
 ### Decisión
 
-**fly.io**, con el VPS como alternativa si no se quiere abrir otra cuenta. El
-despliegue queda detrás de una interfaz chica (`Dockerfile` + `fly.toml` + un
+**fly.io**, sobre la organización existente con plan Hobby legacy: sale cero
+pesos y es la opción con menos trabajo de operación. Respaldos, en orden: túnel
+desde la laptop para salvar una presentación, y el VPS si en algún momento hace
+falta que la demo quede en pie sin atención.
+
+El despliegue queda detrás de una interfaz chica (`Dockerfile` + `fly.toml` + un
 `README`), así que cambiar de opinión después cuesta poco.
 
 ## 12. Riesgos
