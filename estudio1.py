@@ -21,7 +21,7 @@ from psychopy import visual, core, event, gui
 
 import config
 import escalas
-from agente_llm import AgenteLLM, cargar_api_key
+from comun.agente_llm import AgenteLLM, cargar_api_key
 from chat import Chat
 from marcadores import RegistroEventos
 
