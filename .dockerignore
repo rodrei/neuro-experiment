@@ -1,0 +1,15 @@
+# El experimento de escritorio no va al contenedor: necesita PsychoPy y una
+# pantalla, y la demo web no lo usa.
+escritorio/
+capturas/
+docs/
+datos/
+
+# Nunca a la imagen: la key va por fly secrets.
+openrouter_key.txt
+
+__pycache__/
+*.pyc
+.git/
+.gitignore
+*.md
