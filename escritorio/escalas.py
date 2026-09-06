@@ -10,7 +10,6 @@ Ver el README.
 
 import os
 import sys
-import csv
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if RAIZ not in sys.path:
@@ -259,31 +258,12 @@ def preguntar_texto(win, enunciado, minimo_caracteres=0, alto=0.26):
 # ---------------------------------------------------------------------
 # Bloques de medidas
 # ---------------------------------------------------------------------
-SUDS_TICKS = list(range(0, 101, 10))
-SUDS_ETIQUETAS = ["0\nsin malestar"] + [""] * 4 + ["50"] + [""] * 4 + \
-                 ["100\nmalestar máximo"]
-
-SAM_VALENCIA = ("En este momento, ¿cómo te sentís?",
-                list(range(1, 10)),
-                ["1\nmuy mal"] + [""] * 3 + ["5\nneutral"] + [""] * 3 + ["9\nmuy bien"],
-                ["val_%d.png" % i for i in range(1, 10)])
-
-SAM_AROUSAL = ("En este momento, ¿qué tan activada/o o alterada/o te sentís?",
-               list(range(1, 10)),
-               ["1\nmuy calma/o"] + [""] * 3 + ["5\nintermedio"] + [""] * 3 +
-               ["9\nmuy activada/o"],
-               ["aro_%d.png" % i for i in range(1, 10)])
-
-# Autenticidad / empatía percibida, adaptada de Rubin et al. (2025).
-# El ítem 4 es inverso: hay que recodificarlo antes de promediar.
-ITEMS_AUTENTICIDAD = [
-    ("aut1", "Sentí que mi interlocutor entendió genuinamente lo que le conté."),
-    ("aut2", "La respuesta que recibí me pareció auténtica."),
-    ("aut3", "Sentí que a mi interlocutor le importaba cómo me sentía."),
-    ("aut4_inv", "La respuesta me pareció mecánica o automática."),
-]
-LIKERT7 = (list(range(1, 8)),
-           ["1\nmuy en desacuerdo"] + [""] * 5 + ["7\nmuy de acuerdo"])
+# Los enunciados, ticks y anclas de todas las escalas viven en
+# protocolo/escalas.json.
+#
+# Los ítems de autenticidad / empatía percibida están adaptados de Rubin et
+# al. (2025). El cuarto es INVERSO (queda marcado con "inverso": true en el
+# protocolo): hay que recodificarlo antes de promediar la subescala.
 
 
 
@@ -302,34 +282,29 @@ LIKERT7 = (list(range(1, 8)),
 # por pantalla estiraría el intervalo entre episodios lo suficiente como para
 # que la activación fisiológica se disipe antes del segundo.
 
-PANAS_TICKS = [1, 2, 3, 4, 5]
-PANAS_ANCLAS = ["muy poco\no nada", "un poco", "moderada-\nmente",
-                "bastante", "extremada-\nmente"]
-
-
-def cargar_panas():
-    return protocolo.panas()
-
-
-def preguntar_panas(win, items_por_pagina=10):
+def preguntar_panas(win, items_por_pagina=None):
     """PANAS-estado en grilla. Devuelve {clave: 1..5} más los totales PA/NA."""
-    items = cargar_panas()
+    cfg = protocolo.escalas()["panas"]
+    items = protocolo.panas()
+    if items_por_pagina is None:
+        items_por_pagina = cfg["items_por_pagina"]
+    ticks, anclas = cfg["ticks"], cfg["anclas"]
     respuestas = {}
     raton = event.Mouse(win=win)
 
     instruccion = visual.TextStim(
-        win, text="Indicá en qué medida te sentís así EN ESTE MOMENTO.",
+        win, text=cfg["consigna"],
         font=config.FUENTE, height=0.030, color=config.COLOR_TEXTO,
         pos=(0, 0.44), wrapWidth=1.15)
 
     x_centro, ancho = 0.12, 0.42
     x_primera = x_centro - ancho / 2.0
-    paso = ancho / (len(PANAS_TICKS) - 1)
+    paso = ancho / (len(ticks) - 1)
     encabezados = [
-        visual.TextStim(win, text=PANAS_ANCLAS[k], font=config.FUENTE,
+        visual.TextStim(win, text=anclas[k], font=config.FUENTE,
                         height=0.017, color=config.COLOR_TENUE,
                         pos=(x_primera + k * paso, 0.355), wrapWidth=0.115)
-        for k in range(len(PANAS_TICKS))]
+        for k in range(len(ticks))]
 
     for inicio in range(0, len(items), items_por_pagina):
         pagina = items[inicio:inicio + items_por_pagina]
@@ -344,7 +319,7 @@ def preguntar_panas(win, items_por_pagina=10):
             # etiquetas vacías guarda '' en vez del número. style="rating"
             # deja categorical=False y devuelve el valor numérico.
             sliders.append(visual.Slider(
-                win, ticks=PANAS_TICKS, labels=None, granularity=1,
+                win, ticks=ticks, labels=None, granularity=1,
                 style="rating", pos=(x_centro, y), size=(ancho, 0.022),
                 color=config.COLOR_TEXTO, fillColor=config.COLOR_ACENTO,
                 borderColor=config.COLOR_TENUE))
@@ -413,22 +388,23 @@ def bloque_medidas(win, registro, momento, incluir_autenticidad=True,
     historia de cobertura antes de tiempo.
     """
     registro.marcar("medidas_inicio", momento)
+    esc = protocolo.escalas()
     r = {}
 
-    r["suds"] = preguntar_escala(
-        win, "¿Cuánto malestar sentís en este momento?",
-        SUDS_TICKS, SUDS_ETIQUETAS)
+    suds = esc["suds"]
+    r["suds"] = preguntar_escala(win, suds["enunciado"], suds["ticks"],
+                                 suds["etiquetas"])
 
-    enun, ticks, etiq, imgs = SAM_VALENCIA
-    r["sam_valencia"] = preguntar_escala(win, enun, ticks, etiq, imgs)
-
-    enun, ticks, etiq, imgs = SAM_AROUSAL
-    r["sam_arousal"] = preguntar_escala(win, enun, ticks, etiq, imgs)
+    for clave in ("sam_valencia", "sam_arousal"):
+        sam = esc[clave]
+        r[clave] = preguntar_escala(win, sam["enunciado"], sam["ticks"],
+                                    sam["etiquetas"], sam["imagenes"])
 
     if incluir_autenticidad:
-        ticks, etiq = LIKERT7
-        for clave, enunciado in ITEMS_AUTENTICIDAD:
-            r[clave] = preguntar_escala(win, enunciado, ticks, etiq)
+        aut = esc["autenticidad"]
+        for item in aut["items"]:
+            r[item["clave"]] = preguntar_escala(
+                win, item["enunciado"], aut["ticks"], aut["etiquetas"])
 
     # El PANAS va ÚLTIMO a propósito: son 20 ítems, y SUDS/SAM son las medidas
     # sensibles al tiempo (hay que tomarlas lo antes posible tras el episodio,
