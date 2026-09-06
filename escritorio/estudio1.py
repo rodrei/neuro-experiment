@@ -14,18 +14,23 @@ Salir en cualquier momento: Ctrl + Q
 """
 
 import os
+import sys
 import csv
 from datetime import datetime
+
+AQUI = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.path.dirname(AQUI)
+if RAIZ not in sys.path:
+    sys.path.insert(0, RAIZ)
 
 from psychopy import visual, core, event, gui
 
 import config
 import escalas
 from comun.agente_llm import AgenteLLM, cargar_api_key
+from comun import protocolo
 from chat import Chat
 from marcadores import RegistroEventos
-
-AQUI = os.path.dirname(os.path.abspath(__file__))
 
 
 # =====================================================================
@@ -53,12 +58,7 @@ def dialogo_inicial():
 
 
 def cargar_guiones():
-    ruta = os.path.join(AQUI, "protocolo", "guiones.csv")
-    guiones = {}
-    with open(ruta, encoding="utf-8") as f:
-        for fila in csv.DictReader(f):
-            guiones.setdefault(fila["tipo"], {})[int(fila["turno"])] = fila["texto"]
-    return guiones
+    return protocolo.guiones()
 
 
 # =====================================================================
@@ -157,7 +157,7 @@ def main():
 
     sello = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = "S1_%s_%s_%s" % (info["id_participante"], info["condicion_agente"], sello)
-    carpeta = os.path.join(AQUI, "datos")
+    carpeta = os.path.join(RAIZ, "datos")
     os.makedirs(carpeta, exist_ok=True)
 
     win = visual.Window(
