@@ -4,7 +4,7 @@ Pantallas de instrucciones y escalas de autoinforme.
 
 SAM: por ahora se presenta como escala numérica de 9 puntos con anclas
 verbales. Si quieren la versión pictórica original (los monigotes), hay que
-poner los PNG en stim/sam/ y el código ya los dibuja arriba de la escala.
+poner los PNG en protocolo/sam/ y el código ya los dibuja arriba de la escala.
 Ver el README.
 """
 
@@ -15,7 +15,7 @@ from psychopy import visual, core, event
 
 import config
 
-CARPETA_SAM = os.path.join(os.path.dirname(__file__), "stim", "sam")
+CARPETA_SAM = os.path.join(os.path.dirname(__file__), "protocolo", "sam")
 USAR_IMAGENES_SAM = os.path.isdir(CARPETA_SAM)
 
 
@@ -302,7 +302,7 @@ PANAS_ANCLAS = ["muy poco\no nada", "un poco", "moderada-\nmente",
 
 
 def cargar_panas():
-    ruta = os.path.join(os.path.dirname(__file__), "stim", "panas.csv")
+    ruta = os.path.join(os.path.dirname(__file__), "protocolo", "panas.csv")
     with open(ruta, encoding="utf-8") as f:
         return list(csv.DictReader(f))
 

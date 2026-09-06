@@ -89,7 +89,7 @@ COBERTURA = {
 # =====================================================================
 # AGENTE
 # =====================================================================
-# "guionado" -> los mensajes salen de stim/guiones.csv (el diseño original:
+# "guionado" -> los mensajes salen de protocolo/guiones.csv (el diseño original:
 #               contenido y latencia idénticos entre condiciones).
 # "llm"      -> los genera un modelo vía OpenRouter (ver agente_llm.py).
 #               El saludo que pide la situación sigue guionado igual, y si

@@ -10,7 +10,7 @@ Decisiones importantes:
     sí o sí, y es idéntico entre condiciones). El LLM toma la conversación
     a partir de la situación revelada.
   - Si la API falla o devuelve vacío, el turno cae al guion fijo de
-    stim/guiones.csv y el experimento sigue (mismo espíritu que los backends
+    protocolo/guiones.csv y el experimento sigue (mismo espíritu que los backends
     de marcadores: nunca se cae). El origen queda registrado.
   - La key se lee de OPENROUTER_API_KEY o de openrouter_key.txt (gitignoreado),
     porque al lanzar desde PsychoPy Coder no hay variables de entorno.
@@ -71,7 +71,7 @@ REGLAS = (
 
 def _ejemplos_de_guion(tipo):
     """Los mensajes guionados del tipo, como anclas de estilo del prompt."""
-    ruta = os.path.join(AQUI, "stim", "guiones.csv")
+    ruta = os.path.join(AQUI, "protocolo", "guiones.csv")
     try:
         with open(ruta, encoding="utf-8") as f:
             return [fila["texto"] for fila in csv.DictReader(f)
