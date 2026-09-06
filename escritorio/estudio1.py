@@ -265,8 +265,11 @@ def main():
     # ---------------------------------------------------------------
     # Debriefing
     # ---------------------------------------------------------------
-    escalas.pantalla_texto(win, txt["debriefing"]["cuerpo"],
-                           titulo=txt["debriefing"]["titulo"])
+    # El debriefing depende del modo con el que corrió el agente: con "llm"
+    # los mensajes no estaban escritos de antemano, y decírselo así sería
+    # mentirle justo en la pantalla donde se le deja de mentir.
+    deb = protocolo.debriefing(config.AGENTE)
+    escalas.pantalla_texto(win, deb["cuerpo"], titulo=deb["titulo"])
 
     consiente = chequeo["consiente_tras_debriefing"]
     respuestas["consiente_tras_debriefing"] = escalas.preguntar_escala(

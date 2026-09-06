@@ -17,11 +17,12 @@ class TestTextos(unittest.TestCase):
 
     def test_estan_todas_las_pantallas_de_prosa(self):
         t = protocolo.textos()
-        for clave in ("consentimiento", "reposo", "pausa", "debriefing",
-                      "cierre"):
+        for clave in ("consentimiento", "reposo", "pausa", "cierre"):
             self.assertIn(clave, t)
             self.assertTrue(t[clave]["cuerpo"].strip(),
                             "la pantalla %s quedó sin cuerpo" % clave)
+        # El debriefing tiene una versión por modo de agente: se prueba aparte.
+        self.assertIn("debriefing", t)
 
     def test_la_cobertura_tiene_las_dos_condiciones(self):
         cobertura = protocolo.textos()["cobertura"]
@@ -39,6 +40,55 @@ class TestTextos(unittest.TestCase):
             set(chequeo),
             {"creencia_persona_real", "sospecha_1", "sospecha_2",
              "sospecha_3", "consiente_tras_debriefing"})
+
+
+class TestDebriefing(unittest.TestCase):
+    """El debriefing es la pantalla donde se deja de engañar al participante:
+    tiene que decir la verdad del modo con el que efectivamente corrió."""
+
+    def test_hay_una_version_por_modo_de_agente(self):
+        cuerpos = protocolo.textos()["debriefing"]["cuerpo"]
+        self.assertEqual(set(cuerpos), {"guionado", "llm"})
+
+    def test_devuelve_titulo_y_cuerpo(self):
+        for agente in ("guionado", "llm"):
+            d = protocolo.debriefing(agente)
+            self.assertEqual(set(d), {"titulo", "cuerpo"})
+            self.assertTrue(d["cuerpo"].strip())
+
+    def test_las_dos_versiones_son_distintas(self):
+        self.assertNotEqual(protocolo.debriefing("guionado")["cuerpo"],
+                            protocolo.debriefing("llm")["cuerpo"])
+
+    def test_solo_el_guionado_afirma_que_todo_estaba_escrito(self):
+        """Es la frase que era falsa en modo LLM y que motivó la separación."""
+        self.assertIn("escritos de antemano",
+                      protocolo.debriefing("guionado")["cuerpo"])
+        self.assertNotIn("Todos los mensajes que recibiste estaban escritos",
+                         protocolo.debriefing("llm")["cuerpo"])
+
+    def test_el_de_llm_dice_que_los_generó_un_modelo(self):
+        cuerpo = protocolo.debriefing("llm")["cuerpo"]
+        self.assertIn("modelo de lenguaje", cuerpo)
+
+    def test_los_dos_niegan_que_hubiera_otra_persona(self):
+        """La historia de cobertura 'humano' es el engaño que hay que
+        levantar, corra el modo que corra."""
+        for agente in ("guionado", "llm"):
+            self.assertIn("no había",
+                          protocolo.debriefing(agente)["cuerpo"].lower())
+
+    def test_los_dos_aclaran_que_el_rechazo_no_fue_personal(self):
+        """Lo que hay que dejar dicho sí o sí antes de que se vaya."""
+        for agente in ("guionado", "llm"):
+            self.assertIn("con lo que contaste",
+                          protocolo.debriefing(agente)["cuerpo"],
+                          "el debriefing de %s no desliga a la persona del "
+                          "rechazo" % agente)
+
+    def test_agente_desconocido_falla(self):
+        with self.assertRaises(ValueError):
+            protocolo.debriefing("humano")
 
 
 class TestEscalas(unittest.TestCase):

@@ -1455,12 +1455,19 @@ EOF
 
 ---
 
-## Cuestión abierta para el equipo (no bloquea este plan)
+## Anexo: el debriefing en modo LLM (resuelto)
 
-Al transcribir el debriefing salió a la luz que **su texto es falso en modo LLM**. Dice:
+Al transcribir el debriefing salió a la luz que **su texto era falso en modo LLM**. Decía:
 
 > "Todos los mensajes que recibiste estaban escritos de antemano y eran exactamente los mismos para todos los participantes."
 
-Con `AGENTE = "llm"` eso no es cierto: los tres turnos los generó un modelo a partir de lo que contó el participante. El texto sigue siendo correcto en el modo `"guionado"`, que es el default y el del diseño original.
+Con `AGENTE = "llm"` eso no es cierto: los tres turnos los genera un modelo a partir de lo que contó el participante.
 
-No se toca en este plan —cambiar la prosa del debriefing es una decisión del grupo y del comité de ética, no una refactorización—, pero queda anotado acá porque la extracción lo dejó a la vista. Si se decide corregirlo, el arreglo natural es una segunda variante en `textos.json` (`debriefing.guionado` / `debriefing.llm`) elegida según `config.AGENTE`.
+Se resolvió, por decisión del grupo, con una versión por modo:
+
+- `protocolo/textos.json` tiene `debriefing.cuerpo.guionado` y `debriefing.cuerpo.llm`. El guionado quedó sin tocar; el de LLM dice que los mensajes los generó un modelo de lenguaje a partir de lo que la persona escribió, que el saludo inicial sí era fijo, y que el papel de cada conversación (acompañar o mostrarse distante) estaba asignado por el diseño antes de que llegara.
+- `comun.protocolo.debriefing(agente)` elige la versión y valida el modo, así que la demo web hereda la misma lógica sin reimplementarla.
+- `escritorio/estudio1.py` la usa con `config.AGENTE`.
+- Ocho tests en `comun/test_protocolo.py` cubren que existan las dos versiones, que sean distintas, que sólo la guionada afirme que todo estaba escrito de antemano, y que ambas nieguen que hubiera otra persona y desliguen a la persona del rechazo.
+
+Los dos textos siguen siendo prosa que el comité de ética tiene que revisar antes de correr participantes.

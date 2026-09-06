@@ -137,6 +137,13 @@ y los CSVs no cambian, y cada mensaje del agente queda registrado con su
 - **Latencia:** el modelo genera mientras el estado dice "en línea"; después
   se muestra "escribiendo…" el tiempo de siempre (función del largo del
   mensaje), así que la espera visible sigue pareciendo humana.
+- **Debriefing:** hay una versión por modo, en `protocolo/textos.json`
+  (`debriefing.cuerpo.guionado` y `debriefing.cuerpo.llm`), y la elige
+  `comun.protocolo.debriefing(config.AGENTE)`. El texto guionado afirma que
+  todos los mensajes estaban escritos de antemano, lo cual es falso en este
+  modo: el de LLM dice en cambio que los generó un modelo a partir de lo que
+  la persona contó, y que el papel (acompañar o mostrarse distante) estaba
+  asignado por el diseño antes de que llegara.
 - **Probar los prompts sin abrir PsychoPy:** `python3 -m comun.agente_llm` abre un
   chat de consola.
 - **Tests** (sin red, con transporte inyectado): `python3 -m unittest discover -s comun -t .`.

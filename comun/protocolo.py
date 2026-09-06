@@ -19,6 +19,7 @@ RAIZ = os.path.dirname(AQUI)
 CARPETA = os.path.join(RAIZ, "protocolo")
 
 MODOS = ("real", "demo")
+AGENTES = ("guionado", "llm")
 
 _cache = {}
 
@@ -35,6 +36,21 @@ def _leer_json(nombre):
 def textos():
     """Prosa de las pantallas, historia de cobertura y chequeo final."""
     return _leer_json("textos")
+
+
+def debriefing(agente):
+    """El debriefing que corresponde al modo de agente que se usó.
+
+    Hay dos versiones porque lo que pasó fue distinto. Con el agente
+    guionado, todos los mensajes estaban escritos de antemano y eran
+    idénticos entre participantes. Con el agente por LLM no: los generó un
+    modelo a partir de lo que contó la persona, y decírselo de la otra
+    manera sería mentirle justo en la pantalla donde se le deja de mentir.
+    """
+    if agente not in AGENTES:
+        raise ValueError("agente debe ser uno de %s, no %r" % (AGENTES, agente))
+    bloque = textos()["debriefing"]
+    return {"titulo": bloque["titulo"], "cuerpo": bloque["cuerpo"][agente]}
 
 
 def escalas():
