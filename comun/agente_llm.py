@@ -46,10 +46,21 @@ def _ejemplos_de_guion(tipo):
         return []
 
 
+MARCA_SIN_RESPUESTA = "(no responde)"
+
+
 def limpiar_respuesta(texto, maximo):
     """Deja el texto listo para una burbuja de chat: una sola línea y, si se
-    pasa del máximo, recortado en el último cierre de oración que entre."""
+    pasa del máximo, recortado en el último cierre de oración que entre.
+
+    También saca un "(no responde)" al principio: cuando la persona no
+    contesta le pasamos esa marca al modelo como si fuera su mensaje, y a
+    veces el modelo la repite al arrancar su turno. Mostrarla en pantalla
+    delata el andamiaje.
+    """
     texto = " ".join(texto.split())
+    while texto.lower().startswith(MARCA_SIN_RESPUESTA):
+        texto = texto[len(MARCA_SIN_RESPUESTA):].lstrip(" .,:;-—")
     if len(texto) <= maximo:
         return texto
     corte = texto[:maximo]

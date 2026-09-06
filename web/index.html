@@ -1,4 +1,93 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Estudio 1</title>
-<p>placeholder</p>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Estudio 1 — Conversaciones</title>
+  <link rel="stylesheet" href="/static/vendor/jspsych.css">
+  <link rel="stylesheet" href="/static/estilos.css">
+</head>
+<body>
+
+<!-- La demo asume teclado y una pantalla ancha: el chat y las grillas del
+     PANAS no entran cómodos en un teléfono. -->
+<div id="aviso-movil">
+  <p><strong>Abrí esta página en una computadora.</strong></p>
+  <p>El estudio necesita teclado y una pantalla ancha.</p>
+</div>
+
+<div id="inicio">
+  <h1>Estudio 1 — Conversaciones</h1>
+  <p class="subtitulo">
+    Demo para el grupo. No es una corrida con participantes reales.
+  </p>
+
+  <form id="formulario">
+    <label>
+      ID de participante
+      <input name="id_participante" type="text" value="demo" required>
+    </label>
+
+    <label>
+      Edad
+      <input name="edad" type="number" min="18" max="99" value="25">
+    </label>
+
+    <label>
+      Sexo
+      <select name="sexo">
+        <option>mujer</option>
+        <option>varón</option>
+        <option>otro / prefiero no decir</option>
+      </select>
+    </label>
+
+    <label>
+      Condición (entre-sujetos)
+      <select name="condicion_agente">
+        <option value="humano">humano — otra persona</option>
+        <option value="ia">ia — asistente conversacional</option>
+      </select>
+    </label>
+
+    <label>
+      Orden (contrabalanceo)
+      <select name="orden">
+        <option value="1">1 — validación primero</option>
+        <option value="2">2 — rechazo primero</option>
+      </select>
+    </label>
+
+    <label>
+      Agente
+      <select name="agente">
+        <option value="guionado">guionado — mensajes fijos</option>
+        <option value="llm">llm — generados por un modelo</option>
+      </select>
+    </label>
+
+    <label>
+      Código de acceso
+      <input name="codigo" type="password" placeholder="dejar vacío si no hay">
+    </label>
+
+    <button type="submit" id="empezar">Empezar</button>
+    <p id="estado-carga">Cargando el protocolo…</p>
+  </form>
+</div>
+
+<div id="jspsych-target"></div>
+
+<script src="/static/vendor/jspsych.js"></script>
+<script src="/static/vendor/plugin-html-button-response.js"></script>
+<script src="/static/vendor/plugin-html-keyboard-response.js"></script>
+<script src="/static/vendor/plugin-html-slider-response.js"></script>
+<script src="/static/vendor/plugin-survey-likert.js"></script>
+<script src="/static/vendor/plugin-survey-text.js"></script>
+<script src="/js/protocolo.js"></script>
+<script src="/js/chat-plugin.js"></script>
+<script src="/js/escalas.js"></script>
+<script src="/js/experimento.js"></script>
+
+</body>
+</html>
