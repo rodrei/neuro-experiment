@@ -79,11 +79,11 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio,
 
     # pantalla de conexión (estandarizada entre condiciones)
     espera = visual.TextStim(
-        win, text="Conectando…", font=config.FUENTE, height=0.040,
-        color=config.COLOR_TENUE, pos=(0, 0))
+        win, text=protocolo.textos()["conectando"], font=config.FUENTE,
+        height=0.040, color=config.COLOR_TENUE, pos=(0, 0))
     salto = escalas.boton_salto(win)
     raton = event.Mouse(win=win)
-    fin = core.getTime() + config.DUR_CONECTANDO
+    fin = core.getTime() + config.PARAMETROS["dur_conectando"]
     while core.getTime() < fin:
         espera.draw()
         escalas.dibujar_salto(salto)
@@ -104,8 +104,8 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio,
 
     # el participante la cuenta acá, en el chat
     situacion, lat_sit = conv.esperar_participante(
-        timeout=config.TIMEOUT_SITUACION,
-        minimo_caracteres=config.MIN_CARACTERES_SITUACION,
+        timeout=config.PARAMETROS["timeout_situacion"],
+        minimo_caracteres=config.PARAMETROS["min_caracteres_situacion"],
         marcador="situacion_revelada")
     datos["situacion"] = situacion
     datos["situacion_caracteres"] = len(situacion)
@@ -139,7 +139,7 @@ def correr_episodio(win, conv, registro, guiones, tipo, n_episodio,
     # La latencia acá es una VD conductual del diseño.
     registro.marcar("respuesta_libre_inicio", tipo)
     texto, latencia = conv.esperar_participante(
-        timeout=config.VENTANA_RESPUESTA_LIBRE)
+        timeout=config.PARAMETROS["ventana_respuesta_libre"])
     datos["respuesta_final"] = texto
     datos["latencia_final"] = latencia
     datos["respondio_al_final"] = int(bool(texto))
@@ -175,9 +175,11 @@ def main():
         reloj, backend=config.BACKEND_MARCADORES)
     registro.marcar("inicio_experimento", info["condicion_agente"])
 
-    conv = Chat(win, registro, config.ETIQUETA_AGENTE[info["condicion_agente"]])
+    txt = protocolo.textos()
+    conv = Chat(win, registro, txt["etiqueta_agente"][info["condicion_agente"]])
     respuestas = dict(info)
     respuestas["archivo"] = base
+    respuestas["plataforma"] = "escritorio"
 
     # Modo de agente: guionado (el diseño original) o LLM vía OpenRouter.
     usar_llm = config.AGENTE == "llm"
@@ -192,35 +194,22 @@ def main():
               "CSV. No sirve para participantes."
               % config.TECLA_SALTO.upper())
     if usar_llm:
-        respuestas["modelo_llm"] = config.MODELO_LLM
+        respuestas["modelo_llm"] = protocolo.prompts()["modelo"]
 
     # ---------------------------------------------------------------
     # Consentimiento e instrucciones
     # ---------------------------------------------------------------
-    escalas.pantalla_texto(
-        win,
-        "Gracias por participar.\n\n"
-        "Vas a tener dos conversaciones breves por chat y vamos a hacerte "
-        "algunas preguntas entre una y otra.\n\n"
-        "Durante todo el estudio vamos a registrar tu actividad "
-        "electrodérmica con los sensores que tenés en los dedos. No duele "
-        "y no vas a sentir nada.\n\n"
-        "Podés dejar de participar en cualquier momento, sin dar "
-        "explicaciones y sin ninguna consecuencia.",
-        titulo="Antes de empezar")
+    escalas.pantalla_texto(win, txt["consentimiento"]["cuerpo"],
+                           titulo=txt["consentimiento"]["titulo"])
 
     # ---------------------------------------------------------------
     # Línea base fisiológica
     # ---------------------------------------------------------------
-    escalas.pantalla_texto(
-        win,
-        "Primero necesitamos unos minutos de registro en reposo.\n\n"
-        "Vas a ver una cruz en el centro de la pantalla. Quedate cómoda/o, "
-        "mirala y tratá de moverte lo menos posible.",
-        titulo="Registro en reposo")
+    escalas.pantalla_texto(win, txt["reposo"]["cuerpo"],
+                           titulo=txt["reposo"]["titulo"])
 
     registro.marcar("baseline_inicio")
-    escalas.cuenta_regresiva(win, config.DUR_BASELINE)
+    escalas.cuenta_regresiva(win, config.PARAMETROS["dur_baseline"])
     registro.marcar("baseline_fin")
 
     # OJO: en la línea base NO van los ítems de autenticidad. Todavía no hay
@@ -232,9 +221,8 @@ def main():
     # ---------------------------------------------------------------
     # Historia de cobertura (acá se manipula el factor entre-sujetos)
     # ---------------------------------------------------------------
-    escalas.pantalla_texto(
-        win, config.COBERTURA[info["condicion_agente"]],
-        titulo="La conversación")
+    escalas.pantalla_texto(win, txt["cobertura"][info["condicion_agente"]],
+                           titulo=txt["cobertura_titulo"])
 
     # ---------------------------------------------------------------
     # Los dos episodios, en el orden contrabalanceado.
@@ -246,7 +234,8 @@ def main():
     conductual = []
     for i, tipo in enumerate(secuencia, start=1):
         # un AgenteLLM nuevo por episodio: cada conversación arranca de cero
-        agente = AgenteLLM(tipo) if usar_llm else None
+        agente = (AgenteLLM(tipo, timeout=config.TIMEOUT_LLM)
+                  if usar_llm else None)
         datos = correr_episodio(win, conv, registro, guiones, tipo, i,
                                 agente=agente)
         conductual.append(datos)
@@ -256,62 +245,35 @@ def main():
         respuestas.update({"%s_%s" % (tipo, k): v for k, v in medidas.items()})
 
         if i < len(secuencia):
-            escalas.pantalla_texto(
-                win,
-                "Terminó la primera conversación.\n\n"
-                "Cuando estés lista/o, seguimos con la segunda.",
-                titulo="Pausa")
+            escalas.pantalla_texto(win, txt["pausa"]["cuerpo"],
+                                   titulo=txt["pausa"]["titulo"])
 
     # ---------------------------------------------------------------
     # Chequeo de manipulación + funnel debriefing
     # ---------------------------------------------------------------
     registro.marcar("chequeo_manipulacion")
 
+    chequeo = txt["chequeo"]
+    creencia = chequeo["creencia_persona_real"]
     respuestas["creencia_persona_real"] = escalas.preguntar_escala(
-        win,
-        "¿En qué medida creíste que estabas interactuando con una persona real?",
-        list(range(0, 101, 10)),
-        ["0\nseguro/a: era una IA"] + [""] * 4 + ["50\nno sabía"] +
-        [""] * 4 + ["100\nseguro/a: era una persona"])
+        win, creencia["enunciado"], creencia["ticks"], creencia["etiquetas"])
 
-    respuestas["sospecha_1"] = escalas.preguntar_texto(
-        win, "¿Qué te pareció que estaba pasando en este estudio? "
-             "¿Qué creés que estábamos estudiando?", minimo_caracteres=1)
-    respuestas["sospecha_2"] = escalas.preguntar_texto(
-        win, "¿Hubo algo que te resultara raro o poco creíble durante las "
-             "conversaciones?", minimo_caracteres=1)
-    respuestas["sospecha_3"] = escalas.preguntar_texto(
-        win, "¿Pensaste en algún momento que tu interlocutor no era lo que te "
-             "habíamos dicho? Si sí, ¿en qué momento y por qué?",
-        minimo_caracteres=1)
+    for clave in ("sospecha_1", "sospecha_2", "sospecha_3"):
+        respuestas[clave] = escalas.preguntar_texto(
+            win, chequeo[clave], minimo_caracteres=1)
 
     # ---------------------------------------------------------------
     # Debriefing
     # ---------------------------------------------------------------
-    escalas.pantalla_texto(
-        win,
-        "Ahora tenemos que contarte algo importante.\n\n"
-        "En las dos conversaciones NO había ni otra persona ni una "
-        "inteligencia artificial respondiéndote. Todos los mensajes que "
-        "recibiste estaban escritos de antemano y eran exactamente los mismos "
-        "para todos los participantes.\n\n"
-        "Lo hicimos así porque queríamos estudiar si CREER que del otro lado "
-        "hay una persona o una IA cambia cómo reaccionamos, emocional y "
-        "fisiológicamente. Para eso el contenido tenía que ser idéntico.\n\n"
-        "Los mensajes de rechazo no tenían nada que ver con vos ni con lo que "
-        "contaste: eran los mismos para todo el mundo.\n\n"
-        "Si querés hablar de cómo te sentiste, avisale a quien te está "
-        "acompañando.",
-        titulo="Sobre lo que acabás de hacer")
+    escalas.pantalla_texto(win, txt["debriefing"]["cuerpo"],
+                           titulo=txt["debriefing"]["titulo"])
 
+    consiente = chequeo["consiente_tras_debriefing"]
     respuestas["consiente_tras_debriefing"] = escalas.preguntar_escala(
-        win,
-        "Ahora que sabés cómo fue el estudio, ¿nos autorizás a usar tus datos?",
-        [0, 1], ["0\nno, bórrenlos", "1\nsí, úsenlos"])
+        win, consiente["enunciado"], consiente["ticks"], consiente["etiquetas"])
 
-    escalas.pantalla_texto(
-        win, "Listo. Muchas gracias por participar.",
-        pie="Presioná ESPACIO para terminar")
+    escalas.pantalla_texto(win, txt["cierre"]["cuerpo"],
+                           pie=txt["cierre"]["pie"])
 
     # ---------------------------------------------------------------
     # Guardar

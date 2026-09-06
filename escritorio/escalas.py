@@ -113,9 +113,10 @@ def pantalla_texto(win, texto, pie="Presioná ESPACIO para continuar",
             return
 
 
-def cuenta_regresiva(win, duracion, texto="Descansá. Mirá la cruz y tratá de "
-                                          "quedarte quieta/o."):
+def cuenta_regresiva(win, duracion, texto=None):
     """Línea base fisiológica: cruz de fijación durante `duracion` segundos."""
+    if texto is None:
+        texto = protocolo.textos()["reposo_leyenda"]
     cruz = visual.TextStim(win, text="+", font=config.FUENTE, height=0.12,
                            color=config.COLOR_TEXTO, pos=(0, 0))
     leyenda = visual.TextStim(win, text=texto, font=config.FUENTE, height=0.026,

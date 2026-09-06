@@ -161,15 +161,16 @@ class Chat(object):
 
     def latencia_de(self, texto):
         """Determinista: mismo mensaje -> misma espera, en las dos condiciones."""
-        t = config.LATENCIA_BASE + len(texto) * config.LATENCIA_POR_CARACTER
-        return min(t, config.LATENCIA_MAX)
+        p = config.PARAMETROS
+        t = p["latencia_base"] + len(texto) * p["latencia_por_caracter"]
+        return min(t, p["latencia_max"])
 
     def agente_dice(self, texto, etiqueta_marcador=None, origen="guion"):
         """Muestra 'escribiendo…', espera la latencia, y publica el mensaje."""
         espera = self.latencia_de(texto)
 
         self.estado.text = "en línea"
-        fin = core.getTime() + config.DUR_LECTURA_MIN
+        fin = core.getTime() + config.PARAMETROS["dur_lectura_min"]
         while core.getTime() < fin:
             self.dibujar()
             if self._salto_pedido():
@@ -246,7 +247,8 @@ class Chat(object):
                 if minimo_caracteres:
                     self.caja.clear()
                     self.caja.text = ""
-                    return self._enviar(config.TEXTO_RELLENO_TEST, t0, marcador)
+                    return self._enviar(
+                        config.PARAMETROS["texto_relleno_test"], t0, marcador)
                 return self._sin_respuesta(marcador)
 
             self.dibujar()
