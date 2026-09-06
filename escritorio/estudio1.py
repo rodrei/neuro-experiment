@@ -15,7 +15,6 @@ Salir en cualquier momento: Ctrl + Q
 
 import os
 import sys
-import csv
 from datetime import datetime
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +27,7 @@ from psychopy import visual, core, event, gui
 import config
 import escalas
 from comun.agente_llm import AgenteLLM, cargar_api_key
-from comun import protocolo
+from comun import protocolo, salida
 from chat import Chat
 from marcadores import RegistroEventos
 
@@ -156,7 +155,8 @@ def main():
     guiones = cargar_guiones()
 
     sello = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base = "S1_%s_%s_%s" % (info["id_participante"], info["condicion_agente"], sello)
+    base = salida.nombre_base(info["id_participante"],
+                              info["condicion_agente"], sello)
     carpeta = os.path.join(RAIZ, "datos")
     os.makedirs(carpeta, exist_ok=True)
 
@@ -283,27 +283,12 @@ def main():
     # ---------------------------------------------------------------
     registro.marcar("fin_experimento")
 
-    with open(os.path.join(carpeta, base + "_respuestas.csv"), "w",
-              newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        for clave in sorted(respuestas):
-            w.writerow([clave, respuestas[clave]])
-
-    with open(os.path.join(carpeta, base + "_conductual.csv"), "w",
-              newline="", encoding="utf-8") as f:
-        campos = sorted({k for d in conductual for k in d})
-        w = csv.DictWriter(f, fieldnames=campos)
-        w.writeheader()
-        for d in conductual:
-            w.writerow(d)
-
-    with open(os.path.join(carpeta, base + "_chat.csv"), "w",
-              newline="", encoding="utf-8") as f:
-        campos = ["autor", "texto", "origen", "t_experimento_s", "latencia_s"]
-        w = csv.DictWriter(f, fieldnames=campos, extrasaction="ignore")
-        w.writeheader()
-        for fila in conv.transcripcion:
-            w.writerow(fila)
+    # _eventos.csv no va acá: RegistroEventos lo viene escribiendo en
+    # streaming desde que arrancó la sesión.
+    salida.escribir_todo(carpeta, base,
+                         respuestas=respuestas,
+                         conductual=conductual,
+                         chat=conv.transcripcion)
 
     registro.cerrar()
     win.close()
