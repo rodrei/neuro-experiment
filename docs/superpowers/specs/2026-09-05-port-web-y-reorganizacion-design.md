@@ -138,7 +138,7 @@ Prosa que hoy está incrustada en `estudio1.py` y `config.py`:
   "consentimiento": {"titulo": "Antes de empezar", "cuerpo": "..."},
   "reposo": {"titulo": "Registro en reposo", "cuerpo": "..."},
   "pausa": {"titulo": "Pausa", "cuerpo": "..."},
-  "debriefing": {"titulo": "Sobre lo que acabás de hacer", "cuerpo": "..."},
+  "debriefing": {"titulo": "Sobre lo que acabás de hacer", "cuerpo": {"guionado": "...", "llm": "..."}},
   "cierre": {"cuerpo": "...", "pie": "Presioná ESPACIO para terminar"},
   "conectando": "Conectando…",
   "nombre_agente": "Alex",
