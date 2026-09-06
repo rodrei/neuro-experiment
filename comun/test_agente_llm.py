@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Tests de agente_llm.py. Corren con el Python del sistema, sin red y sin
-PsychoPy:  python3 -m unittest test_agente_llm -v
+Tests de comun/agente_llm.py. Corren con el Python del sistema, sin red y sin
+PsychoPy:  python3 -m unittest comun.test_agente_llm -v
 
 El transporte (la llamada HTTP a OpenRouter) se inyecta, así que acá se
 prueba todo lo demás: armado del historial, rol por condición, fallback
@@ -14,8 +14,8 @@ import tempfile
 import threading
 import unittest
 
-from agente_llm import (AgenteLLM, _contexto_ssl, cargar_api_key,
-                        limpiar_respuesta)
+from comun.agente_llm import (AgenteLLM, _contexto_ssl, cargar_api_key,
+                              limpiar_respuesta)
 
 
 def transporte_fijo(respuesta):
