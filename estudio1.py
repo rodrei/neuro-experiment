@@ -53,7 +53,7 @@ def dialogo_inicial():
 
 
 def cargar_guiones():
-    ruta = os.path.join(AQUI, "stim", "guiones.csv")
+    ruta = os.path.join(AQUI, "protocolo", "guiones.csv")
     guiones = {}
     with open(ruta, encoding="utf-8") as f:
         for fila in csv.DictReader(f):

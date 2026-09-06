@@ -1,0 +1,35 @@
+{
+  "suds": {
+    "enunciado": "¿Cuánto malestar sentís en este momento?",
+    "ticks": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "etiquetas": ["0\nsin malestar", "", "", "", "", "50", "", "", "", "", "100\nmalestar máximo"]
+  },
+  "sam_valencia": {
+    "enunciado": "En este momento, ¿cómo te sentís?",
+    "ticks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "etiquetas": ["1\nmuy mal", "", "", "", "5\nneutral", "", "", "", "9\nmuy bien"],
+    "imagenes": ["val_1.png", "val_2.png", "val_3.png", "val_4.png", "val_5.png", "val_6.png", "val_7.png", "val_8.png", "val_9.png"]
+  },
+  "sam_arousal": {
+    "enunciado": "En este momento, ¿qué tan activada/o o alterada/o te sentís?",
+    "ticks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "etiquetas": ["1\nmuy calma/o", "", "", "", "5\nintermedio", "", "", "", "9\nmuy activada/o"],
+    "imagenes": ["aro_1.png", "aro_2.png", "aro_3.png", "aro_4.png", "aro_5.png", "aro_6.png", "aro_7.png", "aro_8.png", "aro_9.png"]
+  },
+  "autenticidad": {
+    "items": [
+      {"clave": "aut1", "enunciado": "Sentí que mi interlocutor entendió genuinamente lo que le conté.", "inverso": false},
+      {"clave": "aut2", "enunciado": "La respuesta que recibí me pareció auténtica.", "inverso": false},
+      {"clave": "aut3", "enunciado": "Sentí que a mi interlocutor le importaba cómo me sentía.", "inverso": false},
+      {"clave": "aut4_inv", "enunciado": "La respuesta me pareció mecánica o automática.", "inverso": true}
+    ],
+    "ticks": [1, 2, 3, 4, 5, 6, 7],
+    "etiquetas": ["1\nmuy en desacuerdo", "", "", "", "", "", "7\nmuy de acuerdo"]
+  },
+  "panas": {
+    "consigna": "Indicá en qué medida te sentís así EN ESTE MOMENTO.",
+    "ticks": [1, 2, 3, 4, 5],
+    "anclas": ["muy poco\no nada", "un poco", "moderada-\nmente", "bastante", "extremada-\nmente"],
+    "items_por_pagina": 10
+  }
+}
