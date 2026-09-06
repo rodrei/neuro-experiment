@@ -97,8 +97,7 @@ web/                  # jsPsych. Descartable.
     estilos.css
     vendor/           # jsPsych 8.x pineado, no CDN
   servidor/
-    app.py
-    requisitos.txt
+    app.py            # sólo stdlib: http.server
   README.md
 
 datos/                # sin cambios, sigue gitignoreado
@@ -356,7 +355,10 @@ se manda al final junto con el resto.
 
 ## 9. `web/servidor/app.py`
 
-Una aplicación Flask chica con cuatro responsabilidades:
+Un servidor chico de **biblioteca estándar** (`http.server`), con cuatro
+responsabilidades. Son cuatro rutas: no justifican una dependencia, y así el
+`Dockerfile` no necesita `pip install` ni hay entorno virtual que preparar
+para correrlo local.
 
 | Ruta | Qué hace |
 | --- | --- |
