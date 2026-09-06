@@ -215,3 +215,23 @@ class TestApiKey(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMarcaSinRespuesta(unittest.TestCase):
+    """Cuando la persona no contesta le pasamos "(no responde)" al modelo como
+    si fuera su mensaje. A veces el modelo la repite al arrancar el turno, y
+    mostrarla en pantalla delata el andamiaje."""
+
+    def test_saca_la_marca_del_principio(self):
+        self.assertEqual(
+            limpiar_respuesta("(no responde) Bueno, a veces pasa.", maximo=100),
+            "Bueno, a veces pasa.")
+
+    def test_saca_la_marca_con_puntuacion_pegada(self):
+        self.assertEqual(
+            limpiar_respuesta("(no responde). Dale, seguimos.", maximo=100),
+            "Dale, seguimos.")
+
+    def test_no_toca_la_marca_en_el_medio(self):
+        texto = "Me dijiste (no responde) y no entendí."
+        self.assertEqual(limpiar_respuesta(texto, maximo=100), texto)
