@@ -10,17 +10,17 @@ contrabalanceada.
 
 ## Cómo correrlo
 
-Abrir **PsychoPy Coder** (no Builder — ver más abajo), abrir `estudio1.py`, Run.
+Abrir **PsychoPy Coder** (no Builder — ver más abajo), abrir `escritorio/estudio1.py`, Run.
 
 Desde terminal, parado en esta carpeta:
 
 ```bash
-PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python estudio1.py
+PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python escritorio/estudio1.py
 ```
 
 Salir en cualquier momento: **Ctrl + Q**.
 
-Por defecto arranca en **modo demo** (`MODO_DEMO = True` en `config.py`):
+Por defecto arranca en **modo demo** (`MODO_DEMO = True` en `escritorio/config.py`):
 ventana chica y tiempos cortos. Para correr participantes, ponerlo en `False`.
 
 Con `MODO_TEST = True` cada pantalla suma un botón **Saltar** abajo a la
@@ -36,18 +36,37 @@ test no se confunde con una real; además queda `modo_test` en
 
 ## Los archivos
 
+El repo tiene tres capas, y la dependencia va siempre en la misma dirección:
+`escritorio/ → comun/ → protocolo/`, nunca al revés.
+
 | Archivo | Qué hace |
 |---|---|
-| `estudio1.py` | Script principal: el flujo completo |
-| `chat.py` | Motor de la interfaz de chat (burbujas, "escribiendo…", turnos) |
-| `escalas.py` | Instrucciones, SUDS, SAM, autenticidad, PANAS, texto libre |
-| `marcadores.py` | Marcadores de evento y sincronización con el equipo fisiológico |
-| `agente_llm.py` | Agente por LLM (OpenRouter), alternativa opt-in al guionado |
-| `test_agente_llm.py` | Tests del agente LLM (`python3 -m unittest test_agente_llm`) |
-| `config.py` | **Todos los parámetros ajustables viven acá** |
-| `stim/guiones.csv` | Banco de mensajes del agente |
-| `stim/panas.csv` | Los 20 ítems del PANAS con su subescala |
+| **`protocolo/`** | **El contenido del experimento como datos. Acá se edita el experimento.** |
+| `protocolo/textos.json` | Consentimiento, reposo, cobertura, pausa, debriefing, cierre y chequeo |
+| `protocolo/escalas.json` | SUDS, SAM, autenticidad y anclas del PANAS |
+| `protocolo/parametros.json` | Tiempos reales y de demo, y la fórmula de latencia del agente |
+| `protocolo/marcadores.json` | Los 18 códigos de evento |
+| `protocolo/prompts.json` | Rol por condición, reglas del agente LLM y parámetros del modelo |
+| `protocolo/guiones.csv` | Banco de mensajes del agente |
+| `protocolo/panas.csv` | Los 20 ítems del PANAS con su subescala |
+| **`comun/`** | **Python compartido: sólo stdlib, sin PsychoPy** |
+| `comun/protocolo.py` | Único lector de `protocolo/`. Lo usan las dos plataformas |
+| `comun/agente_llm.py` | Agente por LLM (OpenRouter), alternativa opt-in al guionado |
+| `comun/test_protocolo.py` | Tests del cargador del protocolo |
+| `comun/test_agente_llm.py` | Tests del agente LLM |
+| **`escritorio/`** | **El experimento en PsychoPy** |
+| `escritorio/estudio1.py` | Script principal: el flujo completo |
+| `escritorio/chat.py` | Motor de la interfaz de chat (burbujas, "escribiendo…", turnos) |
+| `escritorio/escalas.py` | Instrucciones, SUDS, SAM, autenticidad, PANAS, texto libre |
+| `escritorio/marcadores.py` | Marcadores de evento y sincronización con el equipo fisiológico |
+| `escritorio/config.py` | Lo específico de PsychoPy: modo, ventana, apariencia, puertos |
 | `datos/` | Salida (se crea sola) |
+
+Los tests corren con el Python del sistema, sin red y sin PsychoPy:
+
+```bash
+python3 -m unittest discover -s comun -t . -v
+```
 
 ---
 
@@ -105,9 +124,9 @@ justo antes de medirla.
 
 ## Modo LLM (experimental, apagado por defecto)
 
-Con `AGENTE = "llm"` en `config.py`, los tres turnos de cada episodio los
+Con `AGENTE = "llm"` en `escritorio/config.py`, los tres turnos de cada episodio los
 genera un modelo de lenguaje vía OpenRouter en vez de salir de
-`stim/guiones.csv`. El saludo que pide la situación sigue guionado, el flujo
+`protocolo/guiones.csv`. El saludo que pide la situación sigue guionado, el flujo
 y los CSVs no cambian, y cada mensaje del agente queda registrado con su
 `origen` (`guion` / `llm` / `fallback`) en `_chat.csv`.
 
@@ -118,9 +137,9 @@ y los CSVs no cambian, y cada mensaje del agente queda registrado con su
 - **Latencia:** el modelo genera mientras el estado dice "en línea"; después
   se muestra "escribiendo…" el tiempo de siempre (función del largo del
   mensaje), así que la espera visible sigue pareciendo humana.
-- **Probar los prompts sin abrir PsychoPy:** `python3 agente_llm.py` abre un
+- **Probar los prompts sin abrir PsychoPy:** `python3 -m comun.agente_llm` abre un
   chat de consola.
-- **Tests** (sin red, con transporte inyectado): `python3 -m unittest test_agente_llm`.
+- **Tests** (sin red, con transporte inyectado): `python3 -m unittest discover -s comun -t .`.
 
 > **Ojo (metodología):** este modo rompe deliberadamente dos controles del
 > diseño original —contenido idéntico entre participantes y latencia
@@ -185,15 +204,15 @@ Con `style="rating"` queda `categorical=False` y devuelve el número.
 
 ## Pendientes antes de correr participantes
 
-- [ ] **Poner `MODO_DEMO = False` y `MODO_TEST = False`** en `config.py`.
+- [ ] **Poner `MODO_DEMO = False` y `MODO_TEST = False`** en `escritorio/config.py`.
 - [ ] **Cotejar los 20 ítems del PANAS** con Moriondo et al. (2012). La
       traducción actual se escribió de memoria; términos discutibles:
       "upset" → *alterado/a*, "jittery" → *inquieto/a*, "distressed" → *angustiado/a*.
 - [ ] **SAM pictórico.** Hoy son escalas numéricas de 9 puntos con anclas
-      verbales. Para los monigotes originales: poner los PNG en `stim/sam/`
+      verbales. Para los monigotes originales: poner los PNG en `protocolo/sam/`
       como `val_1.png`…`val_9.png` y `aro_1.png`…`aro_9.png`; el código los
       detecta y los dibuja solo.
-- [ ] **Pretest de los guiones.** Los mensajes de `stim/guiones.csv` están
+- [ ] **Pretest de los guiones.** Los mensajes de `protocolo/guiones.csv` están
       balanceados en extensión pero **no validados**. El protocolo pide panel
       de jueces + pretest independiente (n ≈ 30).
 - [ ] **Intensidad del rechazo.** Los guiones son deliberadamente suaves; la
