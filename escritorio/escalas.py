@@ -9,13 +9,19 @@ Ver el README.
 """
 
 import os
+import sys
 import csv
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if RAIZ not in sys.path:
+    sys.path.insert(0, RAIZ)
 
 from psychopy import visual, core, event
 
 import config
+from comun import protocolo
 
-CARPETA_SAM = os.path.join(os.path.dirname(__file__), "protocolo", "sam")
+CARPETA_SAM = os.path.join(RAIZ, "protocolo", "sam")
 USAR_IMAGENES_SAM = os.path.isdir(CARPETA_SAM)
 
 
@@ -302,9 +308,7 @@ PANAS_ANCLAS = ["muy poco\no nada", "un poco", "moderada-\nmente",
 
 
 def cargar_panas():
-    ruta = os.path.join(os.path.dirname(__file__), "protocolo", "panas.csv")
-    with open(ruta, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+    return protocolo.panas()
 
 
 def preguntar_panas(win, items_por_pagina=10):
