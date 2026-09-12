@@ -91,5 +91,16 @@ rotarlo después de cada demo.
 
 Por ser una demo descartable: no hay base de datos, ni cuentas, ni chequeos de
 atención, ni SAM pictórico, ni soporte para teléfonos (un cartel manda a usar
-una computadora), ni equivalente de LSL o puerto serie, ni `MODO_TEST`. Corre
-siempre con los parámetros `demo` de `protocolo/parametros.json`.
+una computadora), ni equivalente de LSL o puerto serie. Corre siempre con los
+parámetros `demo` de `protocolo/parametros.json`.
+
+## Modo test
+
+El checkbox **Modo test** del formulario de arranque suma un botón **Saltar**
+abajo a la derecha y la tecla **F9** (en Mac suele necesitar `fn`) en cada
+pantalla. Recorre el flujo entero sin contestar nada. Lo salteado queda
+**vacío** en los CSV y una página del PANAS salteada deja la subescala sin
+total, así que una corrida de test no se confunde con una real; además queda
+`modo_test` en `_respuestas.csv`. Dentro del chat no se saltea el episodio
+sino la espera activa: manda lo que haya escrito, y si el mensaje era
+obligatorio lo completa con `texto_relleno_test` del protocolo.
