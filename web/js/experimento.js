@@ -24,6 +24,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const datos = new FormData(e.target);
     CONFIG_SESION = Object.fromEntries(datos.entries());
     CONFIG_SESION.orden = parseInt(CONFIG_SESION.orden, 10);
+    // Un checkbox sin marcar no viene en el FormData.
+    CONFIG_SESION.modo_test = datos.get("modo_test") === "1";
     document.getElementById("inicio").style.display = "none";
     document.getElementById("jspsych-target").classList.add("activo");
     correrExperimento();
@@ -51,6 +53,8 @@ function correrExperimento() {
     display_element: "jspsych-target",
     on_finish: () => enviar(jsPsych, eventos),
   });
+
+  if (cfg.modo_test) activarModoTest(jsPsych);
 
   const marca = (etiqueta, detalle) => ({
     type: jsPsychHtmlKeyboardResponse,
@@ -153,6 +157,38 @@ function correrExperimento() {
   jsPsych.run(timeline);
 }
 
+/* Modo test: botón Saltar y tecla F9 para recorrer el flujo sin contestar.
+ *
+ * Lo salteado queda VACÍO en los CSV (una página del PANAS salteada deja la
+ * subescala sin total), y la corrida queda marcada con modo_test en
+ * _respuestas.csv, así que nunca se confunde con una real. */
+function activarModoTest(jsPsych) {
+  const boton = document.getElementById("saltar");
+  boton.hidden = false;
+
+  function saltar() {
+    // Dentro del chat no se saltea el episodio entero sino la espera activa
+    // (la latencia del agente o la caja de texto), igual que en el escritorio.
+    if (document.querySelector("#jspsych-target .chat")) {
+      jsPsychChatEpisodio.saltar();
+      return;
+    }
+    try {
+      jsPsych.finishTrial({ salteado: true });
+    } catch (e) {
+      // Entre dos trials no hay nada que terminar: se ignora el clic.
+    }
+  }
+
+  boton.addEventListener("click", saltar);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "F9") {
+      e.preventDefault();
+      saltar();
+    }
+  });
+}
+
 /* Arma los cuatro archivos y los manda al servidor. */
 async function enviar(jsPsych, eventosGenerales) {
   const cfg = CONFIG_SESION;
@@ -166,7 +202,7 @@ async function enviar(jsPsych, eventosGenerales) {
     condicion_agente: cfg.condicion_agente,
     orden: cfg.orden,
     agente: cfg.agente,
-    modo_test: false,
+    modo_test: cfg.modo_test,
   };
   if (cfg.agente === "llm") {
     respuestas.modelo_llm = window.PROTOCOLO.prompts.modelo;
@@ -179,19 +215,21 @@ async function enviar(jsPsych, eventosGenerales) {
     }
   }
 
+  // Una pantalla salteada no trae response. Va como null, no undefined:
+  // JSON.stringify tira las claves undefined y la fila desaparecería del CSV
+  // en vez de quedar vacía, como queda en el escritorio.
   jsPsych.data.get().filter({ trial_type: "html-slider-response" }).values()
     .forEach((fila) => {
       if (fila.clave && fila.clave.startsWith("final_")) {
-        respuestas[fila.clave.slice("final_".length)] = fila.response;
+        respuestas[fila.clave.slice("final_".length)] = valorONulo(fila.response);
       }
     });
 
   const sospecha = jsPsych.data.get().filter({ bloque: "sospecha" }).values()[0];
-  if (sospecha) {
-    respuestas.sospecha_1 = sospecha.response.Q0;
-    respuestas.sospecha_2 = sospecha.response.Q1;
-    respuestas.sospecha_3 = sospecha.response.Q2;
-  }
+  const resp = (sospecha && sospecha.response) || {};
+  respuestas.sospecha_1 = valorONulo(resp.Q0);
+  respuestas.sospecha_2 = valorONulo(resp.Q1);
+  respuestas.sospecha_3 = valorONulo(resp.Q2);
 
   const episodios = jsPsych.data.get()
     .filter({ trial_type: "chat-episodio" }).values();

@@ -33,7 +33,22 @@ var jsPsychChatEpisodio = (function (jspsych) {
     },
   };
 
-  const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+  /* Modo test. La espera activa (la latencia del agente o la caja del
+   * participante) deja acá cómo saltearse; ChatEpisodio.saltar() la llama.
+   * Fuera del modo test nadie lo invoca. */
+  let saltarActual = null;
+
+  function esperar(ms) {
+    return new Promise((resolver) => {
+      const cronometro = setTimeout(listo, ms);
+      function listo() {
+        clearTimeout(cronometro);
+        saltarActual = null;
+        resolver();
+      }
+      saltarActual = listo;
+    });
+  }
 
   class ChatEpisodio {
     constructor(jsPsych) {
@@ -170,6 +185,7 @@ var jsPsychChatEpisodio = (function (jspsych) {
             elTexto.removeEventListener("keydown", alTeclear);
             elEnviar.removeEventListener("click", alEnviar);
             if (cronometro) clearTimeout(cronometro);
+            saltarActual = null;
             elTexto.value = "";
             elTexto.disabled = true;
             elEnviar.disabled = true;
@@ -200,20 +216,37 @@ var jsPsychChatEpisodio = (function (jspsych) {
           elEnviar.addEventListener("click", alEnviar);
           actualizarAyuda();
 
+          const sinRespuesta = () => {
+            marcar(marcador, "sin respuesta");
+            transcripcion.push({
+              autor: "participante",
+              texto: "[sin respuesta]",
+              t_experimento_s: Number(ahora().toFixed(4)),
+            });
+            historial.push({ role: "user", content: "(no responde)" });
+            terminar("", null);
+          };
+
           if (limite) {
             cronometro = setTimeout(() => {
               const limpio = elTexto.value.trim();
               if (limpio && limpio.length >= minimo) return enviar();
-              marcar(marcador, "sin respuesta");
-              transcripcion.push({
-                autor: "participante",
-                texto: "[sin respuesta]",
-                t_experimento_s: Number(ahora().toFixed(4)),
-              });
-              historial.push({ role: "user", content: "(no responde)" });
-              terminar("", null);
+              sinRespuesta();
             }, limite * 1000);
           }
+
+          // Modo test: manda lo que haya, y si el mensaje era obligatorio lo
+          // completa con el relleno del protocolo para que la conversación
+          // siga teniendo tema (sobre todo en modo LLM).
+          saltarActual = () => {
+            const limpio = elTexto.value.trim();
+            if (limpio && limpio.length >= minimo) return enviar();
+            if (minimo) {
+              elTexto.value = p.texto_relleno_test;
+              return enviar();
+            }
+            sinRespuesta();
+          };
         });
       }
 
@@ -278,5 +311,8 @@ var jsPsychChatEpisodio = (function (jspsych) {
   }
 
   ChatEpisodio.info = info;
+  ChatEpisodio.saltar = () => {
+    if (saltarActual) saltarActual();
+  };
   return ChatEpisodio;
 })(jsPsychModule);

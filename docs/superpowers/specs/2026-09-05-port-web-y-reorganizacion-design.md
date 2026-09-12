@@ -343,9 +343,14 @@ como un dato válido.
 
 La web corre siempre con los parámetros `demo` de `parametros.json`: la línea
 base de 5 minutos no tiene sentido delante de una clase, y sin EDA tampoco tiene
-función. **No se implementa el equivalente del `MODO_TEST`** (botón Saltar y
-tecla F9): con los tiempos cortos ya se recorre el flujo entero en pocos minutos,
-y sostener dos mecanismos de salteo en la demo no se paga.
+función.
+
+Tiene el equivalente del `MODO_TEST` del escritorio: un checkbox en el
+formulario de arranque activa el botón **Saltar** y la tecla **F9** en cada
+pantalla. Lo salteado queda vacío en los CSV (una página del PANAS salteada deja
+la subescala sin total), la corrida queda marcada con `modo_test`, y dentro del
+chat se saltea la espera activa y no el episodio, rellenando el mensaje
+obligatorio con `texto_relleno_test`.
 
 ### Registro de eventos
 

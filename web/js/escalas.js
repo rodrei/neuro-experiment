@@ -101,6 +101,13 @@ function bloqueMedidas(momento, incluirAutenticidad, marca) {
   return trials;
 }
 
+/* Respuesta ausente (pantalla salteada en modo test) -> null. Con undefined,
+ * JSON.stringify tira la clave y la fila desaparece del CSV en vez de quedar
+ * vacía, como queda en el escritorio. */
+function valorONulo(valor) {
+  return valor === undefined ? null : valor;
+}
+
 /* Recolecta las respuestas de un momento desde los datos de jsPsych.
  * Los totales PA/NA siguen la misma regla que el escritorio: una subescala
  * incompleta NO tiene total, para que un total parcial no se lea después
@@ -111,7 +118,7 @@ function recolectarMedidas(jsPsych, momento) {
   jsPsych.data.get().filter({ trial_type: "html-slider-response" }).values()
     .forEach((fila) => {
       if (fila.clave && fila.clave.startsWith(momento + "_")) {
-        salida[fila.clave.slice(momento.length + 1)] = fila.response;
+        salida[fila.clave.slice(momento.length + 1)] = valorONulo(fila.response);
       }
     });
 
@@ -119,8 +126,9 @@ function recolectarMedidas(jsPsych, momento) {
   const porClave = {};
   jsPsych.data.get().filter({ bloque: "panas", momento: momento }).values()
     .forEach((fila) => {
+      const resp = fila.response || {};      // página salteada: sin response
       fila.claves.forEach((clave, i) => {
-        const valor = fila.response["Q" + i];
+        const valor = resp["Q" + i];
         // survey-likert devuelve el índice (0..4); el protocolo usa 1..5.
         porClave[clave] = valor === null || valor === undefined
           ? null : valor + 1;

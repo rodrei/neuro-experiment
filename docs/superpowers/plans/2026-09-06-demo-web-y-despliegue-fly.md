@@ -19,7 +19,7 @@
 - **jsPsych va vendorizado y pineado** en `web/static/vendor/`, no por CDN: la demo tiene que andar aunque la sala tenga mal internet.
 - **La key de OpenRouter nunca llega al navegador.** Sólo el servidor la ve, desde la variable `OPENROUTER_API_KEY`.
 - **El navegador no parsea `protocolo/`**: lo recibe ya armado por `comun.protocolo.todo()`.
-- **La web corre siempre con los parámetros `demo`** y no implementa el equivalente de `MODO_TEST`.
+- **La web corre siempre con los parámetros `demo`.** Tiene un modo test (checkbox en el formulario: botón Saltar y F9) que espeja el del escritorio.
 - **Los CSV de salida son idénticos a los del escritorio**, mismos nombres y mismas columnas, con `plataforma = web`.
 - Tests: `python3 -m unittest discover -s comun -t . -v` y `python3 -m unittest discover -s web -t . -v`
 - **Trampas de facturación de fly** (las cuatro del spec, son la checklist del despliegue): fijar 256 MB, IPv4 compartida, volumen de 1 GB, y nunca salir del plan legacy. Desplegar en la org `personal`.

@@ -71,12 +71,23 @@
       <input name="codigo" type="password" placeholder="dejar vacío si no hay">
     </label>
 
+    <label class="fila-check">
+      <input name="modo_test" type="checkbox" value="1">
+      Modo test: botón <strong>Saltar</strong> y tecla <strong>F9</strong> en
+      cada pantalla. Lo salteado queda vacío en los CSV.
+    </label>
+
     <button type="submit" id="empezar">Empezar</button>
     <p id="estado-carga">Cargando el protocolo…</p>
   </form>
 </div>
 
 <div id="jspsych-target"></div>
+
+<!-- Fuera de #jspsych-target a propósito: jsPsych vacía ese contenedor en cada
+     trial. Sólo se muestra en modo test. Abajo a la derecha, como POS_SALTO
+     en el escritorio: ahí no hay nada en ninguna pantalla. -->
+<button id="saltar" type="button" hidden>Saltar (F9)</button>
 
 <script src="/static/vendor/jspsych.js"></script>
 <script src="/static/vendor/plugin-html-button-response.js"></script>
