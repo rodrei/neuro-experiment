@@ -156,14 +156,14 @@ button:disabled, .jspsych-btn:disabled {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: .5rem;
+  gap: .4rem;
   width: min(40rem, 90vw);
   margin: 0 auto;
 }
 .topic-card {
   display: block;
   width: 100%;
-  padding: .9rem 1.2rem;
+  padding: .55rem 1.1rem;
   text-align: left;
   background: #FFFFFF;
   color: var(--text);
@@ -185,9 +185,9 @@ button:disabled, .jspsych-btn:disabled {
 }
 .topic-question {
   display: block;
-  font-size: 1.05rem;
-  margin-top: .2rem;
-  line-height: 1.35;
+  font-size: 1rem;
+  margin-top: .1rem;
+  line-height: 1.3;
 }
 
 .screen-body {
@@ -202,9 +202,35 @@ button:disabled, .jspsych-btn:disabled {
 .fixation-cross { font-size: 4rem; }
 .rest-caption { color: var(--muted); margin-top: 3rem; }
 
-/* PANAS as a grid: 10 items per page. */
-.jspsych-survey-likert-statement { text-align: right; font-size: .95rem; }
-.jspsych-survey-likert-opts { font-size: .8rem; }
+/* PANAS as a grid: 10 items per page, statement on the left, scale on the
+   right, like the desktop grid. The plugin injects its own <style> with
+   40px/35px paddings; the ids give these rules precedence. */
+#jspsych-survey-likert-form {
+  display: grid;
+  grid-template-columns: 11rem minmax(24rem, 30rem);
+  align-items: center;
+  column-gap: 1.2rem;
+  row-gap: .15rem;
+  justify-content: center;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-statement {
+  text-align: right;
+  font-size: .95rem;
+  padding-top: 0;
+  margin: 0;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-opts {
+  font-size: .72rem;
+  padding: 0 0 .9rem;
+  margin: 0;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-opts:before { top: 10px; }
+#jspsych-survey-likert-form #jspsych-survey-likert-next {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: .8rem;
+}
+.jspsych-survey-likert-preamble .prompt { margin-bottom: 1rem; }
 
 /* ------------------------------------------------------------------ */
 /* Chat                                                                */

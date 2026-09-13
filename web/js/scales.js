@@ -34,6 +34,7 @@ function sliderScale(spec, key) {
     max: ticks[ticks.length - 1],
     step: step,
     slider_start: ticks[Math.floor(ticks.length / 2)],
+    slider_width: 600,
     require_movement: true,
     button_label: "Continuar",
     data: { key: key },
