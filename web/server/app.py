@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Server of the Study 1 web demo.
+Server of the Study 1 web version.
 
-Four responsibilities and nothing else:
+Five responsibilities and nothing else:
 
   GET  /               and static files -> serves web/
   GET  /api/protocol                    -> the protocol built by common.protocol
+  GET  /api/health                      -> is the LLM reachable? (cached probe)
   POST /api/turn                        -> proxy to the LLM (the key never leaves here)
   POST /api/data                        -> writes the session's four CSVs
 
-It is `http.server` from the standard library on purpose: it is four routes,
+It is `http.server` from the standard library on purpose: it is five routes,
 and that way the Docker image needs no `pip install` and running it locally
 needs no environment.
 
 The proxy is STATELESS: the browser sends the full history on every turn and
-the server rebuilds the agent. It can be restarted in the middle of a demo
+the server rebuilds the agent. It can be restarted in the middle of a session
 and handles several sessions in parallel with no extra work.
 
 Run locally:  python3 -m web.server.app
@@ -49,6 +50,10 @@ RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "30"))
 
 # Agent transport. None = the real one (OpenRouter). The tests override it.
 TRANSPORT = None
+# Transport for the health probe. None = the real one. The tests override it.
+PROBE_TRANSPORT = None
+# The probe costs one token per call: its result is reused for this long.
+HEALTH_CACHE_S = 60
 
 MIME_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -61,6 +66,7 @@ MIME_TYPES = {
 
 _visits = {}
 _lock = threading.Lock()
+_health_cache = {"at": 0.0, "result": None}
 
 
 def _allowed(ip):
@@ -74,6 +80,33 @@ def _allowed(ip):
         recent.append(now)
         _visits[ip] = recent
     return True
+
+
+def _health(refresh=False):
+    """Whether the LLM is usable right now: key found, model answering.
+
+    Cached HEALTH_CACHE_S seconds so reloading the start page does not spend
+    credit; `refresh` forces a new probe.
+    """
+    with _lock:
+        fresh = time.time() - _health_cache["at"] < HEALTH_CACHE_S
+        if _health_cache["result"] is not None and fresh and not refresh:
+            return _health_cache["result"]
+    source = llm_agent.api_key_source()
+    ok, latency, error = llm_agent.probe(transport=PROBE_TRANSPORT,
+                                         timeout=LLM_TIMEOUT)
+    result = {
+        "key_found": source is not None,
+        "key_source": source,
+        "model": protocol.prompts()["model"],
+        "reachable": ok,
+        "latency_s": round(latency, 3) if ok else None,
+        "error": error,
+    }
+    with _lock:
+        _health_cache["at"] = time.time()
+        _health_cache["result"] = result
+    return result
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -116,9 +149,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # GET
     # -----------------------------------------------------------------
     def do_GET(self):
-        path = urllib.parse.urlparse(self.path).path
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
         if path == "/api/health":
-            return self._json(200, {"ok": True})
+            query = urllib.parse.parse_qs(parsed.query)
+            refresh = query.get("refresh", ["0"])[0] == "1"
+            return self._json(200, {"ok": True, "llm": _health(refresh)})
         if path == "/api/protocol":
             return self._json(200, protocol.everything())
         return self._static(path)
@@ -161,30 +197,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self._error(404, "not found")
 
     def _turn(self, body):
-        """Rebuilds the agent, replays the history into it and asks for a turn."""
+        """Rebuilds the agent, replays the history into it and asks for a turn.
+
+        Body: {feedback, name, question, history, fallback_line, access_code}.
+        Reply: {text, origin, fallback_reason}. If the API fails, reply()
+        returns the fallback line with origin "fallback" and the reason: the
+        session never goes down because of one turn, and the failure is
+        visible.
+        """
         feedback = body.get("feedback")
         if feedback not in llm_agent.FEEDBACK_TYPES:
             return self._error(400, "invalid feedback")
         agent = llm_agent.LLMAgent(feedback, transport=TRANSPORT,
-                                   timeout=LLM_TIMEOUT)
+                                   timeout=LLM_TIMEOUT,
+                                   name=body.get("name"),
+                                   question=body.get("question"))
         for message in body.get("history", []):
             text = message.get("content", "")
             if message.get("role") == "user":
                 agent.hear(text)
             else:
                 agent.greet(text)
-        # If the API fails, reply() already returns the fallback line with
-        # origin "fallback": the demo never goes down because of one turn.
-        text, origin, _reason = agent.reply(body.get("fallback_line", ""))
-        return self._json(200, {"text": text, "origin": origin})
+        text, origin, reason = agent.reply(body.get("fallback_line", ""))
+        return self._json(200, {"text": text, "origin": origin,
+                                "fallback_reason": reason})
 
     def _data(self, body):
-        """Writes the four CSVs, in the same format as the desktop."""
+        """Writes the four CSVs, prefixed S1_<id>_seq<sequence>_<stamp>."""
         info = body.get("info") or {}
         responses = dict(body.get("responses") or {})
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base = output.base_name(info.get("participant_id") or "no_id",
-                                info.get("agent_condition") or "no_cond",
+                                "seq%s" % (info.get("sequence") or "0"),
                                 stamp)
         responses["platform"] = "web"
         responses["file"] = base
@@ -213,8 +257,15 @@ def create_server(port=0, data_dir=None):
 
 def main():
     server = create_server(PORT)
-    print("Study 1 — web demo at http://0.0.0.0:%d" % server.server_address[1])
+    print("Study 1 — web at http://0.0.0.0:%d" % server.server_address[1])
     print("Data in %s" % DATA_DIR)
+    source = llm_agent.api_key_source()
+    if source == "env":
+        print("LLM key: found in OPENROUTER_API_KEY")
+    elif source == "file":
+        print("LLM key: found in openrouter_key.txt")
+    else:
+        print("LLM key: NOT FOUND (every turn will fall back to the fixed lines)")
     if not ACCESS_CODE:
         print("NOTICE: no ACCESS_CODE; anyone with the URL can spend "
               "OpenRouter credit.")

@@ -13,7 +13,9 @@ import csv
 import os
 
 EVENT_FIELDS = ["t_experiment_s", "t_unix", "code", "label", "detail"]
-CHAT_FIELDS = ["author", "text", "origin", "t_experiment_s", "latency_s"]
+CHAT_FIELDS = ["episode", "condition", "interlocutor", "topic", "author",
+               "text", "origin", "fallback_reason", "t_experiment_s",
+               "latency_s"]
 
 
 def base_name(participant_id, tag, stamp):
@@ -47,7 +49,9 @@ def write_behavioral(path, rows):
 
 
 def write_chat(path, rows):
-    """Full transcript, with the origin of every agent message."""
+    """Full transcript, with the origin (and the fallback reason, if any) of
+    every agent message. The desktop rows have no episode context: those
+    columns stay empty there."""
     with _open(path) as f:
         w = csv.DictWriter(f, fieldnames=CHAT_FIELDS, extrasaction="ignore")
         w.writeheader()

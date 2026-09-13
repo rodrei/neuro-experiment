@@ -60,6 +60,12 @@ class TestWriteChat(unittest.TestCase):
                 rows = list(csv.reader(f))
         self.assertEqual(rows[0], output.CHAT_FIELDS)
 
+    def test_chat_fields_carry_the_episode_context_and_the_reason(self):
+        self.assertEqual(output.CHAT_FIELDS, [
+            "episode", "condition", "interlocutor", "topic", "author",
+            "text", "origin", "fallback_reason", "t_experiment_s",
+            "latency_s"])
+
 
 class TestWriteEvents(unittest.TestCase):
 

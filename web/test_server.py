@@ -16,6 +16,7 @@ import unittest
 import urllib.error
 import urllib.request
 
+from common import protocol
 from web.server import app
 
 
@@ -52,6 +53,7 @@ class ServerBase(unittest.TestCase):
         self.thread.start()
         self._previous_code = app.ACCESS_CODE
         self._previous_transport = app.TRANSPORT
+        self._previous_probe = app.PROBE_TRANSPORT
 
     def tearDown(self):
         self.server.shutdown()
@@ -59,14 +61,48 @@ class ServerBase(unittest.TestCase):
         shutil.rmtree(self.folder, ignore_errors=True)
         app.ACCESS_CODE = self._previous_code
         app.TRANSPORT = self._previous_transport
+        app.PROBE_TRANSPORT = self._previous_probe
+
+
+class TestHealth(ServerBase):
+
+    def test_reports_reachable_when_the_probe_succeeds(self):
+        app.PROBE_TRANSPORT = lambda payload: "h"
+        status, body = request(self.port, "/api/health?refresh=1")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        llm = body["llm"]
+        self.assertTrue(llm["reachable"])
+        self.assertIsNone(llm["error"])
+        self.assertEqual(llm["model"], protocol.prompts()["model"])
+        self.assertGreaterEqual(llm["latency_s"], 0)
+        self.assertIn("key_found", llm)
+        self.assertIn("key_source", llm)
+
+    def test_reports_the_error_when_the_probe_fails(self):
+        def transport(payload):
+            raise RuntimeError("HTTP 401 Unauthorized")
+
+        app.PROBE_TRANSPORT = transport
+        _, body = request(self.port, "/api/health?refresh=1")
+        self.assertFalse(body["llm"]["reachable"])
+        self.assertIn("401", body["llm"]["error"])
+
+    def test_caches_the_result(self):
+        calls = []
+
+        def transport(payload):
+            calls.append(1)
+            return "h"
+
+        app.PROBE_TRANSPORT = transport
+        request(self.port, "/api/health?refresh=1")
+        request(self.port, "/api/health")
+        request(self.port, "/api/health")
+        self.assertEqual(len(calls), 1)
 
 
 class TestReads(ServerBase):
-
-    def test_health(self):
-        status, body = request(self.port, "/api/health")
-        self.assertEqual(status, 200)
-        self.assertTrue(body["ok"])
 
     def test_protocol_carries_the_eleven_sections(self):
         status, body = request(self.port, "/api/protocol")
@@ -105,13 +141,30 @@ class TestTurn(ServerBase):
         app.ACCESS_CODE = ""
         app.TRANSPORT = lambda payload: "model reply"
 
-    def test_returns_the_text_with_origin_llm(self):
+    def test_returns_the_text_with_origin_llm_and_no_reason(self):
         status, body = request(self.port, "/api/turn", {
-            "feedback": "validation",
-            "history": [{"role": "user", "content": "me peleé con mi hermana"}],
+            "feedback": "validation", "name": "Nova",
+            "question": "¿Messi es el mejor?",
+            "history": [{"role": "user", "content": "Sí, obvio."}],
             "fallback_line": "fallback"})
         self.assertEqual(status, 200)
-        self.assertEqual(body, {"text": "model reply", "origin": "llm"})
+        self.assertEqual(body, {"text": "model reply", "origin": "llm",
+                                "fallback_reason": None})
+
+    def test_the_question_and_name_reach_the_system_prompt(self):
+        seen = {}
+
+        def transport(payload):
+            seen["system"] = payload["messages"][0]["content"]
+            return "ok"
+
+        app.TRANSPORT = transport
+        request(self.port, "/api/turn", {
+            "feedback": "rejection", "name": "Kai",
+            "question": "¿El arte es cualquier cosa?", "history": [],
+            "fallback_line": "x"})
+        self.assertIn("¿El arte es cualquier cosa?", seen["system"])
+        self.assertIn("Kai", seen["system"])
 
     def test_replays_the_history_into_the_payload(self):
         seen = {}
@@ -145,7 +198,8 @@ class TestTurn(ServerBase):
             "feedback": "rejection", "history": [],
             "fallback_line": "Mmm, no sé."})
         self.assertEqual(status, 200)
-        self.assertEqual(body, {"text": "Mmm, no sé.", "origin": "fallback"})
+        self.assertEqual(body, {"text": "Mmm, no sé.", "origin": "fallback",
+                                "fallback_reason": "OSError: no network"})
 
 
 class TestAccessCode(ServerBase):
@@ -180,12 +234,15 @@ class TestData(ServerBase):
 
     def _send(self):
         return request(self.port, "/api/data", {
-            "info": {"participant_id": "07", "agent_condition": "ai"},
-            "responses": {"suds": 40},
-            "behavioral": [{"episode": 1, "feedback": "validation"}],
-            "chat": [{"author": "agent", "text": "hola", "origin": "script"}],
+            "info": {"participant_id": "07", "sequence": 3},
+            "responses": {"ep1_suds": 40},
+            "behavioral": [{"episode": 1, "condition": "ai_rejection"}],
+            "chat": [{"episode": 1, "condition": "ai_rejection",
+                      "interlocutor": "Nova", "topic": "art",
+                      "author": "agent", "text": "hola", "origin": "fallback",
+                      "fallback_reason": "OSError: no network"}],
             "events": [{"t_experiment_s": 0, "t_unix": 0, "code": 1,
-                        "label": "experiment_start", "detail": "ai"}]})
+                        "label": "experiment_start", "detail": "3"}]})
 
     def test_writes_the_four_csvs(self):
         status, body = self._send()
@@ -194,10 +251,21 @@ class TestData(ServerBase):
         for name in body["files"]:
             self.assertTrue(os.path.exists(os.path.join(self.folder, name)))
 
-    def test_prefix_carries_id_and_condition(self):
+    def test_prefix_carries_id_and_sequence(self):
         _, body = self._send()
         for name in body["files"]:
-            self.assertTrue(name.startswith("S1_07_ai_"))
+            self.assertTrue(name.startswith("S1_07_seq3_"), name)
+
+    def test_chat_csv_carries_episode_condition_and_reason(self):
+        _, body = self._send()
+        chat = [n for n in body["files"] if "_chat" in n][0]
+        with open(os.path.join(self.folder, chat), encoding="utf-8") as f:
+            header, row = f.read().splitlines()[:2]
+        self.assertEqual(header.split(","), [
+            "episode", "condition", "interlocutor", "topic", "author",
+            "text", "origin", "fallback_reason", "t_experiment_s",
+            "latency_s"])
+        self.assertIn("OSError: no network", row)
 
     def test_marks_the_platform_as_web(self):
         _, body = self._send()
