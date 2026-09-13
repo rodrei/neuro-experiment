@@ -1,0 +1,230 @@
+/* Estudio 1 — demo web.
+   Los colores replican los de escritorio/config.py para que las dos versiones
+   se vean como el mismo estudio. */
+
+:root {
+  --fondo: #F2F3F5;
+  --texto: #1C1C1E;
+  --tenue: #8A8A8E;
+  --burbuja-agente: #FFFFFF;
+  --burbuja-participante: #D8E7FA;
+  --barra: #FFFFFF;
+  --acento: #3070C6;
+  --borde: #D0D0D4;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pantalla de arranque                                                */
+/* ------------------------------------------------------------------ */
+#inicio {
+  max-width: 34rem;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: #FFFFFF;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+
+#inicio h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+#inicio .subtitulo { color: var(--tenue); margin: 0 0 1.5rem; }
+
+#formulario label {
+  display: block;
+  margin-bottom: .9rem;
+  font-size: .9rem;
+  color: var(--tenue);
+}
+
+#formulario input,
+#formulario select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: .25rem;
+  padding: .5rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: #FFFFFF;
+}
+
+button, .jspsych-btn {
+  padding: .6rem 1.4rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #FFFFFF;
+  background: var(--acento);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:disabled, .jspsych-btn:disabled {
+  background: var(--tenue);
+  cursor: not-allowed;
+}
+
+#estado-carga { font-size: .85rem; color: var(--tenue); margin-top: .8rem; }
+
+#formulario .fila-check {
+  display: flex;
+  gap: .5rem;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+#formulario .fila-check input { width: auto; margin: .2rem 0 0; }
+
+/* Botón de salto del modo test. Gris tenue, como en el escritorio, para que
+   no compita con los botones de verdad. */
+#saltar {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1000;
+  padding: .4rem .9rem;
+  font-size: .85rem;
+  background: var(--tenue);
+}
+
+/* ------------------------------------------------------------------ */
+/* Pantallas de jsPsych                                                */
+/* ------------------------------------------------------------------ */
+#jspsych-target { display: none; }
+#jspsych-target.activo { display: block; }
+
+.jspsych-content { max-width: 46rem; }
+
+.pantalla-titulo {
+  color: var(--acento);
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.pantalla-cuerpo {
+  text-align: left;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.enunciado { font-size: 1.15rem; margin-bottom: 1.5rem; }
+
+.cruz-fijacion { font-size: 4rem; }
+.leyenda-reposo { color: var(--tenue); margin-top: 3rem; }
+
+/* El PANAS en grilla: 10 ítems por página. */
+.jspsych-survey-likert-statement { text-align: right; font-size: .95rem; }
+.jspsych-survey-likert-opts { font-size: .8rem; }
+
+/* ------------------------------------------------------------------ */
+/* Chat                                                                */
+/* ------------------------------------------------------------------ */
+.chat {
+  width: min(46rem, 92vw);
+  height: 80vh;
+  margin: 1rem auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+
+.chat-barra {
+  background: var(--barra);
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--borde);
+  text-align: left;
+}
+
+.chat-nombre { font-size: .95rem; }
+.chat-estado { font-size: .8rem; color: var(--tenue); min-height: 1.1em; }
+
+.chat-mensajes {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+
+.burbuja {
+  max-width: 62%;
+  padding: .6rem .8rem;
+  border-radius: 12px;
+  font-size: .97rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.burbuja.agente {
+  align-self: flex-start;
+  background: var(--burbuja-agente);
+  border: 1px solid #E6E6EA;
+}
+
+.burbuja.participante {
+  align-self: flex-end;
+  background: var(--burbuja-participante);
+}
+
+.chat-entrada {
+  display: flex;
+  gap: .5rem;
+  padding: .7rem;
+  background: var(--barra);
+  border-top: 1px solid var(--borde);
+}
+
+.chat-entrada textarea {
+  flex: 1;
+  resize: none;
+  height: 3.4rem;
+  padding: .5rem;
+  font-family: inherit;
+  font-size: .97rem;
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+}
+
+.chat-ayuda {
+  font-size: .78rem;
+  color: var(--tenue);
+  padding: 0 .8rem .6rem;
+  text-align: right;
+  background: var(--barra);
+}
+
+/* ------------------------------------------------------------------ */
+/* Aviso de móvil                                                      */
+/* ------------------------------------------------------------------ */
+#aviso-movil { display: none; }
+
+@media (max-width: 700px) {
+  #aviso-movil {
+    display: block;
+    margin: 3rem auto;
+    padding: 2rem;
+    max-width: 20rem;
+    text-align: center;
+    background: #FFFFFF;
+    border-radius: 10px;
+  }
+  #inicio, #jspsych-target { display: none !important; }
+}

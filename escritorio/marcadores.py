@@ -16,10 +16,16 @@ estándar es exactamente este: alinear offline por timestamp.
 import csv
 import time
 import os
+import sys
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if RAIZ not in sys.path:
+    sys.path.insert(0, RAIZ)
 
 from psychopy import core, logging
 
 import config
+from comun import protocolo
 
 
 class RegistroEventos:
@@ -85,8 +91,8 @@ class RegistroEventos:
 
     # -----------------------------------------------------------------
     def marcar(self, etiqueta, detalle=""):
-        """Registra un evento. `etiqueta` debe estar en config.MARCADORES."""
-        codigo = config.MARCADORES.get(etiqueta, 0)
+        """Registra un evento. `etiqueta` debe estar en protocolo/marcadores.json."""
+        codigo = protocolo.marcadores().get(etiqueta, 0)
         t_exp = self.reloj.getTime()
         t_unix = time.time()
 

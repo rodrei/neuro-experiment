@@ -1,0 +1,33 @@
+# Despliegue de la demo web del Estudio 1.
+#
+# La cuenta está en el plan Hobby legacy, que conserva la asignación gratuita
+# anterior (3 VMs shared-cpu-1x de 256 MB, 3 GB de volumen, 100 GB de tráfico).
+# Los valores de acá están elegidos para entrar en esa asignación: NO subir la
+# memoria ni el tamaño del volumen sin saber que eso empieza a facturar.
+
+app = "neuro-estudio1-demo"
+primary_region = "gru"
+
+[build]
+
+[env]
+  PUERTO = "8080"
+  CARPETA_DATOS = "/datos"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+# Los CSV de las sesiones. El volumen está atado a esta máquina: bajarlos con
+# `fly sftp get` después de cada demo, no tratarlo como almacenamiento durable.
+[[mounts]]
+  source = "datos"
+  destination = "/datos"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
