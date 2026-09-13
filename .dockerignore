@@ -1,11 +1,11 @@
-# El experimento de escritorio no va al contenedor: necesita PsychoPy y una
-# pantalla, y la demo web no lo usa.
-escritorio/
-capturas/
+# The desktop experiment does not go in the container: it needs PsychoPy and
+# a display, and the web demo does not use it.
+desktop/
+screenshots/
 docs/
-datos/
+data/
 
-# Nunca a la imagen: la key va por fly secrets.
+# Never into the image: the key goes through fly secrets.
 openrouter_key.txt
 
 __pycache__/
