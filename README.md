@@ -1,248 +1,212 @@
-# Estudio 1 en PsychoPy — Validación y rechazo: IA vs. agente humano
+# Study 1 — Validation and rejection: AI vs. human agent
 
-Neurodiplo, Grupo 3 · AI companions · pre-entrega #3
+Neurodiplo, Group 3 · AI companions · pre-entrega #3
 
-Implementación del **Estudio 1**: 2 × 2 mixto, Tipo de agente (Humano vs. IA)
-entre-sujetos y Retroalimentación (Validación vs. Rechazo) intra-sujeto
-contrabalanceada.
+Two implementations of the same study share one content folder:
+
+- **`web/`** — the reference implementation of the current design
+  (2 × 2 within-subject, four debate episodes, no deception). Runs in a
+  browser, deployed on fly.io. **This is what the group demos and iterates.**
+- **`desktop/`** — the PsychoPy implementation, still on the original
+  two-episode design with a cover story. It is what EDA recording needs and
+  will be migrated to the current design later.
+
+The design document (Spanish) is `docs/Pre-entrega #3 — Diseño experimental.md`.
+The specs and plans behind the code are under `docs/superpowers/`.
+
+Code, comments, JSON keys, CSV headers and developer docs are in English.
+Everything a participant reads is Argentine Spanish (voseo) and lives in
+`protocol/`.
 
 ---
 
-## Cómo correrlo
-
-Abrir **PsychoPy Coder** (no Builder — ver más abajo), abrir `escritorio/estudio1.py`, Run.
-
-Desde terminal, parado en esta carpeta:
+## Running the web version
 
 ```bash
-PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python escritorio/estudio1.py
+python3 -m web.server.app          # http://localhost:8080
 ```
 
-Salir en cualquier momento: **Ctrl + Q**.
+No dependencies: the server is standard library only. Put the OpenRouter key
+in `OPENROUTER_API_KEY` or in `openrouter_key.txt` at the repo root
+(gitignored); without it every turn falls back to fixed lines and the start
+page says so.
 
-Por defecto arranca en **modo demo** (`MODO_DEMO = True` en `escritorio/config.py`):
-ventana chica y tiempos cortos. Para correr participantes, ponerlo en `False`.
+The start form asks for participant id, age, sex, **sequence** (the row of
+the Latin square, suggested from the id), the access code if the server has
+one, and **test mode**. Under the form a pre-flight line reports whether the
+model answers (`/api/health`). See `web/README.md` for the environment
+variables, the deploy and the browser check.
 
-Con `MODO_TEST = True` cada pantalla suma un botón **Saltar** abajo a la
-derecha, y **F9** hace lo mismo desde el teclado (`TECLA_SALTO`). Sirve para
-recorrer el flujo entero sin contestar las escalas ni esperar los tiempos: el
-PANAS pide una pulsación por página, y un mensaje obligatorio del chat se
-completa con `TEXTO_RELLENO_TEST`. Lo salteado queda **vacío** en los CSV y
-una subescala incompleta del PANAS no lleva total, así que una corrida de
-test no se confunde con una real; además queda `modo_test` en
-`_respuestas.csv`. Para participantes va en `False`.
+## Running the desktop version
 
----
-
-## Los archivos
-
-El repo tiene tres capas, y la dependencia va siempre en la misma dirección:
-`escritorio/ → comun/ → protocolo/`, nunca al revés.
-
-| Archivo | Qué hace |
-|---|---|
-| **`protocolo/`** | **El contenido del experimento como datos. Acá se edita el experimento.** |
-| `protocolo/textos.json` | Consentimiento, reposo, cobertura, pausa, debriefing, cierre y chequeo |
-| `protocolo/escalas.json` | SUDS, SAM, autenticidad y anclas del PANAS |
-| `protocolo/parametros.json` | Tiempos reales y de demo, y la fórmula de latencia del agente |
-| `protocolo/marcadores.json` | Los 18 códigos de evento |
-| `protocolo/prompts.json` | Rol por condición, reglas del agente LLM y parámetros del modelo |
-| `protocolo/guiones.csv` | Banco de mensajes del agente |
-| `protocolo/panas.csv` | Los 20 ítems del PANAS con su subescala |
-| **`comun/`** | **Python compartido: sólo stdlib, sin PsychoPy** |
-| `comun/protocolo.py` | Único lector de `protocolo/`. Lo usan las dos plataformas |
-| `comun/agente_llm.py` | Agente por LLM (OpenRouter), alternativa opt-in al guionado |
-| `comun/test_protocolo.py` | Tests del cargador del protocolo |
-| `comun/test_agente_llm.py` | Tests del agente LLM |
-| **`escritorio/`** | **El experimento en PsychoPy** |
-| `escritorio/estudio1.py` | Script principal: el flujo completo |
-| `escritorio/chat.py` | Motor de la interfaz de chat (burbujas, "escribiendo…", turnos) |
-| `escritorio/escalas.py` | Instrucciones, SUDS, SAM, autenticidad, PANAS, texto libre |
-| `escritorio/marcadores.py` | Marcadores de evento y sincronización con el equipo fisiológico |
-| `escritorio/config.py` | Lo específico de PsychoPy: modo, ventana, apariencia, puertos |
-| `datos/` | Salida (se crea sola) |
-
-Los tests corren con el Python del sistema, sin red y sin PsychoPy:
+Open **PsychoPy Coder**, open `desktop/study1.py`, Run. From a terminal:
 
 ```bash
-python3 -m unittest discover -s comun -t . -v
+PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python desktop/study1.py
+```
+
+Quit at any time: **Ctrl + Q**. `DEMO_MODE` and `TEST_MODE` live in
+`desktop/config.py`; both must be `False` for participants.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s common -t . -v    # protocol loader, LLM agent, CSV writer
+python3 -m unittest discover -s web -t . -v       # the HTTP server, with a fake LLM
+```
+
+System Python, no network, no PsychoPy. The desktop has no automated suite:
+compile it with PsychoPy's Python (`… -m py_compile desktop/*.py`) and walk
+it by hand.
+
+Browser check of the web flow (needs Playwright installed globally):
+
+```bash
+node web/e2e/run_flow.mjs --url http://localhost:8080 --shots /tmp/shots
 ```
 
 ---
 
-## Flujo del experimento
+## Layout
 
-1. Diálogo inicial (ID, edad, sexo, condición de agente, orden, si registra EEG)
-2. Consentimiento e instrucciones
-3. **Línea base** 5 min con cruz de fijación → marcadores 10/11
-4. Bloque de medidas de línea base: SUDS → SAM → **PANAS** *(sin ítems de autenticidad: todavía no hay interlocutor)*
-5. **Historia de cobertura** — acá se manipula el factor entre-sujetos
-6. **Episodio 1** → bloque de medidas completo
-7. **Episodio 2** (la otra retroalimentación) → bloque de medidas completo
-8. Chequeo de manipulación + funnel debriefing (3 preguntas abiertas)
-9. **Debriefing completo** y reconsentimiento para usar los datos
+Three layers; the dependency always points the same way
+(`web/`, `desktop/` → `common/` → `protocol/`, never back).
 
-Cada episodio: el agente saluda y **pide una situación personal** → el
-participante la cuenta **dentro del chat** (mínimo 120 caracteres, con contador)
-→ tres turnos del agente con respuesta libre entre medio → ventana final de
-respuesta libre (puede no responder; la latencia se registra igual).
-
-Orden dentro de cada bloque de medidas: **SUDS → SAM → autenticidad → PANAS.**
-SUDS y SAM son las medidas sensibles al tiempo y van primero; el PANAS, que es
-largo, va último.
-
----
-
-## Cuatro decisiones de implementación (y por qué)
-
-**1. Coder, no Builder.** El 80 % de esto es una interfaz de chat, y Builder no
-tiene componente de chat. La conversación está dibujada a mano con `TextBox2`
-sobre una `Window` en unidades `height`.
-
-**2. El agente está totalmente guionado: no hace falta operador
-Wizard-of-Oz en vivo.** El diseño exige contenido y latencia idénticos entre las
-condiciones Humano e IA. Un operador humano no puede garantizarlo; un script sí.
-Además hace el procedimiento exactamente replicable.
-
-**3. La latencia del agente es determinista, no aleatoria.**
-`latencia = 1.2 s + 0.045 s × caracteres` (tope 12 s). Mismo mensaje ⇒ misma
-espera. Los guiones están **balanceados en extensión** (validación 340
-caracteres, rechazo 349), así que las dos ramas quedan parejas en tiempo total
-de espera: 18,9 s vs. 19,3 s.
-
-**4. La situación personal se cuenta dentro del chat.** No se piden por
-adelantado en pantallas del software. La historia de cobertura *es* la
-manipulación: pedirlas antes y después "pegarlas" en el chat rompía la ilusión
-justo antes de medirla.
-
-> *Contrapartida a declarar en limitaciones:* si la segunda situación se elige
-> después de haber recibido el rechazo, el rechazo puede contaminar qué decide
-> contar. Como el orden de retroalimentación está contrabalanceado, ese arrastre
-> queda repartido entre condiciones y no sesga el contraste principal.
-
----
-
-## Modo LLM (experimental, apagado por defecto)
-
-Con `AGENTE = "llm"` en `escritorio/config.py`, los tres turnos de cada episodio los
-genera un modelo de lenguaje vía OpenRouter en vez de salir de
-`protocolo/guiones.csv`. El saludo que pide la situación sigue guionado, el flujo
-y los CSVs no cambian, y cada mensaje del agente queda registrado con su
-`origen` (`guion` / `llm` / `fallback`) en `_chat.csv`.
-
-- **Key:** variable `OPENROUTER_API_KEY` o archivo `openrouter_key.txt` en la
-  raíz (gitignoreado). Sin key, todo cae al guion y se avisa por consola.
-- **Robustez:** si la API falla o tarda más de `TIMEOUT_LLM`, el turno sale
-  del guion fijo y el experimento sigue; nunca se cae.
-- **Latencia:** el modelo genera mientras el estado dice "en línea"; después
-  se muestra "escribiendo…" el tiempo de siempre (función del largo del
-  mensaje), así que la espera visible sigue pareciendo humana.
-- **Debriefing:** hay una versión por modo, en `protocolo/textos.json`
-  (`debriefing.cuerpo.guionado` y `debriefing.cuerpo.llm`), y la elige
-  `comun.protocolo.debriefing(config.AGENTE)`. El texto guionado afirma que
-  todos los mensajes estaban escritos de antemano, lo cual es falso en este
-  modo: el de LLM dice en cambio que los generó un modelo a partir de lo que
-  la persona contó, y que el papel (acompañar o mostrarse distante) estaba
-  asignado por el diseño antes de que llegara.
-- **Probar los prompts sin abrir PsychoPy:** `python3 -m comun.agente_llm` abre un
-  chat de consola.
-- **Tests** (sin red, con transporte inyectado): `python3 -m unittest discover -s comun -t .`.
-
-> **Ojo (metodología):** este modo rompe deliberadamente dos controles del
-> diseño original —contenido idéntico entre participantes y latencia
-> balanceada entre ramas— y lo que escribe el participante viaja a OpenRouter
-> y al proveedor del modelo (tiene que estar en el consentimiento). El guion
-> de rechazo generado en vivo tampoco está calibrado con el comité de ética.
-> Por eso el default es `"guionado"`: usar `"llm"` para pilotos/demos hasta
-> que el grupo lo decida.
-
----
-
-## Sincronización con el EDA
-
-`config.BACKEND_MARCADORES` elige cómo se marcan los eventos:
-
-- `"csv"` (por defecto) — sólo el log con timestamps. **Sirve para Empatica E4
-  y Shimmer3**, que graban en su propio reloj: se alinea offline por `t_unix`.
-- `"lsl"` — además publica marcadores por Lab Streaming Layer (`pylsl` ya viene
-  con PsychoPy). Recomendado si el equipo lo soporta.
-- `"serial"` — byte TTL por puerto serie (configurar `PUERTO_SERIAL`).
-- `"paralelo"` — **no existe en Mac**; sólo en una PC de laboratorio.
-
-Si el backend falla al abrir, el experimento **no se cae**: avisa y sigue en CSV.
-
-Las SCR tienen latencias de 1–4 s y se analizan en ventanas de segundos, así que
-**no hace falta precisión de milisegundos** como en un ERP. El log por timestamps
-alcanza. Esto es lo que más de-riesga el montaje: no dependen de tener hardware
-de trigger.
-
-Códigos: 1 inicio · 10/11 baseline · 20 episodio_inicio · **19 agente_pide_situacion** ·
-**18 situacion_revelada** · 21/22/23 mensajes del agente · 30 mensaje del participante ·
-35 ventana de respuesta libre · 40 episodio_fin · 50/51 bloque de medidas ·
-**52/53 PANAS** · 60 chequeo de manipulación · 99 fin.
-
----
-
-## Qué sale al terminar
-
-Cuatro CSV por participante en `datos/`, prefijo `S1_<id>_<condición>_<fecha>`:
-
-| Archivo | Contenido |
+| Path | What it is |
 |---|---|
-| `_eventos.csv` | Cada evento con `t_experimento_s` y `t_unix`. **Es el que se cruza con el EDA.** |
-| `_respuestas.csv` | SUDS, SAM, autenticidad, PANAS (20 ítems + PA_total + NA_total), chequeo de manipulación, funnel debriefing |
-| `_conductual.csv` | Situación contada, largo, y latencias de respuesta; si respondió o no al rechazo |
-| `_chat.csv` | Transcripción completa con timestamps |
+| **`protocol/`** | **The experiment's content as data. This is where the experiment is edited.** See `protocol/README.md`. |
+| `protocol/texts.json` | Every screen's prose, for both platforms |
+| `protocol/scales.json` | SUDS, SAM, authenticity and the PANAS anchors |
+| `protocol/parameters.json` | Real and demo timings, the latency formula, minimum lengths |
+| `protocol/markers.json` | The 22 event codes |
+| `protocol/prompts.json` | Model parameters and the two prompt families (`debate`, `situation`) |
+| `protocol/topics.json` | The eight debate questions |
+| `protocol/interlocutors.json` | The four interlocutor names (two people, two AIs) |
+| `protocol/sequences.json` | The 4×4 Latin square of conditions |
+| `protocol/fallback.csv` | Generic lines shown when an LLM turn fails (web) |
+| `protocol/scripts.csv` | The original scripted messages (desktop) |
+| `protocol/panas.csv` | The 20 PANAS items with their subscale |
+| **`common/`** | **Shared Python, stdlib only, no PsychoPy** |
+| `common/protocol.py` | The only reader of `protocol/` |
+| `common/llm_agent.py` | The LLM agent (OpenRouter): prompt, turn, fallback, health probe |
+| `common/output.py` | The CSV writer both platforms use |
+| **`web/`** | **Browser implementation: `http.server` + jsPsych** |
+| `web/server/app.py` | Serves the page, `/api/protocol`, `/api/health`, `/api/turn`, `/api/data` |
+| `web/js/experiment.js` | The timeline and the submission |
+| `web/js/chat-plugin.js` | One debate episode in one jsPsych trial |
+| `web/js/scales.js` | Text screens, sliders, PANAS grid, measure collection |
+| `web/e2e/run_flow.mjs` | Playwright walk of the whole flow |
+| **`desktop/`** | **PsychoPy implementation** |
+| `desktop/study1.py` | The flow (original two-episode design) |
+| `desktop/chat.py`, `scales.py`, `markers.py`, `config.py` | Chat engine, scales, event log, PsychoPy settings |
+| `data/` | Output (created on demand, gitignored) |
 
 ---
 
-## Trampa de PsychoPy: no usar `style="radio"`
+## The web flow
 
-La grilla del PANAS usa `style="rating"`. **No cambiar a `"radio"`.**
-En PsychoPy `Slider.categorical` es `True` para todo slider de estilo radio, y
-en ese caso `.rating` devuelve `self.labels[...]` en vez del número:
+1. Start form (experimenter): id, age, sex, sequence, access code, test mode; LLM pre-flight.
+2. Consent.
+3. **Rest baseline** (fixation cross) → SUDS → SAM → PANAS (no authenticity: no interlocutor yet).
+4. General instructions.
+5. **Four episodes**, in the order the sequence gives (each of the four
+   conditions once: person/AI × validation/rejection). Each episode:
+   1. **Interlocutor intro** — an honest statement of who is on the other side
+      (a person in another room, or an AI assistant), with their name. Names
+      are assigned by position within the agent type, so name × feedback
+      balances across the four sequences.
+   2. **Topic pick** — the questions not yet used in this session, as cards.
+   3. Connecting…
+   4. **Chat** — the chosen question sits in a pinned card under the bar (it is
+      not a bubble). The participant writes their opinion first (minimum 120
+      characters), then the LLM answers three times, with a free reply
+      window after each, and a final free-reply window.
+   5. SUDS → SAM → authenticity (3 items) → PANAS.
+   6. Pause (except after the fourth).
+6. Debriefing: the warm or dismissive attitude was a role assigned by the
+   design, not a judgment of the participant.
+7. Close; the four CSVs are written.
 
-- con `labels=None` → `TypeError` al primer clic del participante;
-- con `labels=[""]*5` → guarda `''` en vez del valor, **sin avisar**.
+In phase 1 every episode, including the ones introduced as a person, is
+answered by the LLM. Phase 2 connects the person-labelled episodes to a real
+person.
 
-Con `style="rating"` queda `categorical=False` y devuelve el número.
+### Invariants of the web flow
+
+1. **The LLM writes every turn**, from `protocol/prompts.json` `debate`, with
+   the chosen question and the role in the system prompt. If the API fails
+   the turn comes from `protocol/fallback.csv`, and the chat CSV records
+   `origin = fallback` and the reason.
+2. **The agent latency is deterministic**: `1.2 s + 0.045 s × characters`
+   (cap 12 s), applied after the text is generated, so API time never shows.
+3. **The opinion is written inside the chat**, under the pinned question.
+   No screen before the chat asks for it.
+4. **The baseline has no authenticity items.**
+5. **Measures are always SUDS → SAM → authenticity → PANAS** (time-sensitive
+   first, the long one last).
+6. **Every relevant event leaves a marker** (`protocol/markers.json`) so the
+   EDA can be segmented offline.
 
 ---
 
-## Pendientes antes de correr participantes
+## Output
 
-- [ ] **Poner `MODO_DEMO = False` y `MODO_TEST = False`** en `escritorio/config.py`.
-- [ ] **Cotejar los 20 ítems del PANAS** con Moriondo et al. (2012). La
-      traducción actual se escribió de memoria; términos discutibles:
-      "upset" → *alterado/a*, "jittery" → *inquieto/a*, "distressed" → *angustiado/a*.
-- [ ] **SAM pictórico.** Hoy son escalas numéricas de 9 puntos con anclas
-      verbales. Para los monigotes originales: poner los PNG en `protocolo/sam/`
-      como `val_1.png`…`val_9.png` y `aro_1.png`…`aro_9.png`; el código los
-      detecta y los dibuja solo.
-- [ ] **Pretest de los guiones.** Los mensajes de `protocolo/guiones.csv` están
-      balanceados en extensión pero **no validados**. El protocolo pide panel
-      de jueces + pretest independiente (n ≈ 30).
-- [ ] **Intensidad del rechazo.** Los guiones son deliberadamente suaves; la
-      calibración final es decisión del comité de ética.
-- [ ] **Elegir el backend de marcadores** según el equipo que consigan.
-- [ ] **Probar el recorrido interactivo completo** con alguien del equipo.
+Four CSVs per session in `data/`. Web prefix: `S1_<id>_seq<n>_<stamp>`;
+desktop prefix: `S1_<id>_<condition>_<stamp>`.
+
+| File | Content |
+|---|---|
+| `_events.csv` | `t_experiment_s`, `t_unix`, `code`, `label`, `detail`. **The one to align with the EDA.** |
+| `_responses.csv` | key,value rows: session info, `baseline_*` measures, and per episode `epN_condition`, `epN_agent_type`, `epN_feedback`, `epN_topic`, `epN_interlocutor`, `epN_opinion`, `epN_suds`, `epN_sam_*`, `epN_auth_1..3`, `epN_auth_mean`, `epN_pa_*`/`epN_na_*`, `epN_PA_total`, `epN_NA_total` |
+| `_behavioral.csv` | One row per episode: condition, topic, interlocutor, opinion and reply lengths and latencies, timeouts, `fallback_turns` |
+| `_chat.csv` | Every message: `episode`, `condition`, `interlocutor`, `topic`, `author`, `text`, `origin`, `fallback_reason`, `t_experiment_s`, `latency_s` |
+
+A skipped screen (test mode) leaves its value empty; an incomplete PANAS
+subscale has no total; `test_mode` is recorded in `_responses.csv`.
 
 ---
 
-## Qué está verificado
+## Seeing LLM failures
 
-- Los cinco módulos compilan con el Python de PsychoPy 2026.2.2.
-- El chat renderiza correctamente a ~116 fps; las burbujas se miden (no se
-  estiman) y se cachean, no se reconstruyen por frame.
-- La latencia del agente es determinista y está balanceada entre ramas.
-- Recorrido completo del flujo auditado sin interacción: 48 pantallas en el
-  orden correcto, cero preguntas sobre el interlocutor antes del primer chat,
-  PANAS en los 3 momentos, la situación pedida 2 veces dentro del chat.
-- El log de eventos escribe la secuencia completa con timestamps monótonos y
-  `t_unix` válido.
-- Los sliders devuelven los valores numéricos correctos (probado poniendo y
-  leyendo valores).
+- **Before the session:** the start form's pre-flight line, backed by
+  `GET /api/health` (key found? model answered? in how long? or which error).
+  Cached 60 s; the «Volver a comprobar» link forces a new probe.
+- **During the session:** in test mode a red banner under the chat bar shows
+  the reason the moment a turn falls back; participants outside test mode see
+  nothing.
+- **Afterwards:** `origin` and `fallback_reason` in `_chat.csv`,
+  `fallback_turns` in `_behavioral.csv`, and one `LLM fallback (...)` line per
+  failure in the server output (`fly logs`).
 
-**No verificado:** el recorrido interactivo real — escribir en las cajas, enviar
-con Enter, mover los sliders con el mouse. Requiere una persona frente a la
-pantalla. Es lo primero que hay que probar.
+---
+
+## EDA synchronisation (desktop)
+
+`MARKER_BACKEND` in `desktop/config.py`: `"csv"` (default: timestamp log only,
+enough for Empatica E4 and Shimmer3, aligned offline by `t_unix`), `"lsl"`,
+`"serial"`, `"parallel"` (not on Mac). If a backend fails to open the
+experiment goes on with CSV only. SCRs have 1–4 s latencies and are analysed
+in windows of seconds, so millisecond triggers are not needed.
+
+---
+
+## PsychoPy trap: never `style="radio"`
+
+The PANAS grid uses `style="rating"`. With `"radio"`, `Slider.categorical`
+is `True` and `.rating` returns labels instead of the number: `labels=None`
+raises `TypeError` on the first click; `labels=[""]*5` stores `''` silently.
+
+---
+
+## Before running participants
+
+- [ ] Decide when the desktop follows the debate design (or how EDA is
+      captured alongside the web version).
+- [ ] Review the eight questions in `protocol/topics.json` and the two roles
+      in `protocol/prompts.json` with the group; pretest the LLM transcripts
+      (judges + independent sample) as the design document requires.
+- [ ] Check the 20 PANAS items against Moriondo et al. (2012).
+- [ ] Optional pictorial SAM: PNGs in `protocol/sam/` named `val_1..9.png`
+      and `aro_1..9.png`; the desktop draws them when present.
+- [ ] Choose the marker backend for the EDA equipment.
+- [ ] Rotate the fly.io access code after each demo.
