@@ -1,0 +1,22 @@
+{
+  "real": {
+    "baseline_duration": 300,
+    "connecting_duration": 8,
+    "free_reply_window": 120,
+    "situation_timeout": 300
+  },
+  "demo": {
+    "baseline_duration": 15,
+    "connecting_duration": 3,
+    "free_reply_window": 20,
+    "situation_timeout": 60
+  },
+  "common": {
+    "latency_base": 1.2,
+    "latency_per_char": 0.045,
+    "latency_max": 12.0,
+    "min_reading_time": 1.0,
+    "min_situation_chars": 120,
+    "test_filler_text": "Ayer discutí fuerte con mi hermana por un tema de familia y quedé muy mal. Estuve toda la noche dando vueltas pensando en las cosas que le dije y en las que me dijo ella."
+  }
+}
