@@ -118,9 +118,9 @@ Three layers; the dependency always points the same way
    2. **Topic pick** — the questions not yet used in this session, as cards.
    3. Connecting…
    4. **Chat** — the chosen question sits in a pinned card under the bar (it is
-      not a bubble). The participant writes their opinion first (minimum 120
-      characters), then the LLM answers three times, with a free reply
-      window after each, and a final free-reply window.
+      not a bubble). The participant writes their opinion first (any
+      non-empty message), then the LLM answers three times, with a free
+      reply window after each, and a final free-reply window.
    5. SUDS → SAM → authenticity (3 items) → PANAS.
    6. Pause (except after the fourth).
 6. Debriefing: the warm or dismissive attitude was a role assigned by the

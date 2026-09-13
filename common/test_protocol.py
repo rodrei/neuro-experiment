@@ -301,13 +301,13 @@ class TestWebTexts(unittest.TestCase):
         self.assertIn("{name}", t["interlocutor_intro"]["human"])
         self.assertIn("{name}", t["interlocutor_intro"]["ai"])
         self.assertIn("{name}", t["interlocutor_label"]["ai"])
-        self.assertIn("{n}", t["topic_card"]["hint"])
+        self.assertTrue(t["topic_card"]["hint"].strip())
         self.assertIsInstance(t["debriefing"]["body"], str)
 
-    def test_debate_parameters_present(self):
+    def test_opinion_has_no_minimum_length_but_a_test_filler(self):
         p = protocol.parameters("demo")
-        self.assertEqual(p["min_opinion_chars"], 120)
-        self.assertGreaterEqual(len(p["test_filler_opinion"]), 120)
+        self.assertNotIn("min_opinion_chars", p)
+        self.assertTrue(p["test_filler_opinion"].strip())
 
 
 if __name__ == "__main__":

@@ -65,7 +65,7 @@ The **Modo test** checkbox adds a **Saltar** button bottom right and the
 banner. Whatever is skipped stays **empty** in the CSVs and a skipped PANAS
 page leaves the subscale without a total; `test_mode` is recorded in
 `_responses.csv`. Inside the chat the skip does not end the episode: it sends
-whatever is typed, filling the mandatory opinion with `test_filler_opinion`
+whatever is typed, filling an empty opening opinion with `test_filler_opinion`
 from the protocol. A skipped topic pick takes the first remaining topic.
 
 ## Browser check

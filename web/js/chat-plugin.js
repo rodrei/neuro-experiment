@@ -106,7 +106,7 @@ var jsPsychChatEpisode = (function (jspsych) {
           <div class="topic-pinned" id="topic-pinned">
             <div class="topic-pinned-title">${t.topic_card.title}</div>
             <div class="topic-pinned-question">${trial.topic.question}</div>
-            <div class="topic-pinned-hint">${fill(t.topic_card.hint, { n: p.min_opinion_chars })}</div>
+            <div class="topic-pinned-hint">${t.topic_card.hint}</div>
           </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input">
@@ -292,13 +292,13 @@ var jsPsychChatEpisode = (function (jspsych) {
             }, limit * 1000);
           }
 
-          // Test mode: sends whatever there is, and if the message was
-          // mandatory fills it in with the protocol's filler so the
-          // conversation still has an opinion to react to.
+          // Test mode: sends whatever there is; for the opening opinion
+          // (the step that passes a filler) an empty box is filled with the
+          // protocol's filler so the conversation has an opinion to react to.
           currentSkip = () => {
             const clean = elText.value.trim();
             if (clean && clean.length >= minChars) return send();
-            if (minChars) {
+            if (filler) {
               elText.value = filler;
               return send();
             }
@@ -315,10 +315,10 @@ var jsPsychChatEpisode = (function (jspsych) {
       (async function run() {
         mark("episode_start", trial.episode + "_" + trial.condition);
 
-        // The participant opens: their opinion on the pinned question.
+        // The participant opens: their opinion on the pinned question. Any
+        // non-empty message counts; no minimum length.
         const opinion = await waitForParticipant({
           timeout: p.situation_timeout,
-          minChars: p.min_opinion_chars,
           marker: "opinion_sent",
           filler: p.test_filler_opinion,
         });

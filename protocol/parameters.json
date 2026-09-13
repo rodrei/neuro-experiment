@@ -18,7 +18,6 @@
     "min_reading_time": 1.0,
     "min_situation_chars": 120,
     "test_filler_text": "Ayer discutí fuerte con mi hermana por un tema de familia y quedé muy mal. Estuve toda la noche dando vueltas pensando en las cosas que le dije y en las que me dijo ella.",
-    "min_opinion_chars": 120,
     "test_filler_opinion": "Yo creo que sí, aunque depende mucho de cómo se lo mire. Me parece que la mayoría de la gente opina por costumbre y no se pone a pensar en serio qué está en juego, y a mí me molesta bastante eso."
   }
 }

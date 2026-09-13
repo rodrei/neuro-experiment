@@ -30,7 +30,7 @@
   },
   "topic_card": {
     "title": "Tema de esta conversación",
-    "hint": "Escribí tu opinión para empezar (mínimo {n} caracteres)."
+    "hint": "Escribí tu opinión para empezar."
   },
   "pause": {
     "title": "Pausa",

@@ -12,7 +12,7 @@ Values are Argentine Spanish; keys are English.
 | --- | --- | --- |
 | `texts.json` | Consent, rest, instructions, interlocutor intros and labels, topic pick, pinned card, pause, debriefing, closing | web (desktop reads the `desktop_*` entries, `cover_story*`, `agent_name`, `agent_label`, `manipulation_check`, `connecting`, `rest*`, `closing`) |
 | `scales.json` | SUDS, SAM (valence, arousal), authenticity (3 items) and the PANAS anchors | both |
-| `parameters.json` | Real and demo timings, the latency formula, `min_opinion_chars` (web), `min_situation_chars` (desktop), test fillers | both |
+| `parameters.json` | Real and demo timings, the latency formula, `min_situation_chars` (desktop), test fillers | both |
 | `markers.json` | The 22 event codes | both (`situation_revealed`, `agent_asks_situation`, `manipulation_check` are desktop-only) |
 | `prompts.json` | Model parameters; `debate` rules and roles (web); `situation` rules and roles (desktop) | both |
 | `topics.json` | The eight debate questions: `id`, `category`, `question` | web |
