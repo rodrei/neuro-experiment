@@ -123,7 +123,7 @@ def run_episode(win, chat, log, scripts, feedback, episode_number,
             pending = agent.reply_in_thread(scripts[feedback][turn])
             while not pending.ready():
                 chat.draw()
-            turn_text, origin = pending.result()
+            turn_text, origin, _reason = pending.result()
         else:
             turn_text, origin = scripts[feedback][turn], "script"
         chat.agent_says(turn_text,

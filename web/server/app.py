@@ -175,7 +175,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 agent.greet(text)
         # If the API fails, reply() already returns the fallback line with
         # origin "fallback": the demo never goes down because of one turn.
-        text, origin = agent.reply(body.get("fallback_line", ""))
+        text, origin, _reason = agent.reply(body.get("fallback_line", ""))
         return self._json(200, {"text": text, "origin": origin})
 
     def _data(self, body):

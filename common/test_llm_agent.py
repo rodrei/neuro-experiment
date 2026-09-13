@@ -14,6 +14,7 @@ import tempfile
 import threading
 import unittest
 
+from common import llm_agent
 from common.llm_agent import (LLMAgent, _ssl_context, load_api_key,
                               clean_reply)
 
@@ -37,10 +38,11 @@ class TestReply(unittest.TestCase):
         agent = LLMAgent("validation", transport=transport)
         agent.hear("Me peleé con mi hermana y quedé muy mal.")
 
-        text, origin = agent.reply(fallback_line="fallback line")
+        text, origin, reason = agent.reply(fallback_line="fallback line")
 
         self.assertEqual(text, "Te entiendo, debe haber sido difícil.")
         self.assertEqual(origin, "llm")
+        self.assertIsNone(reason)
 
     def test_sends_the_whole_history_in_order(self):
         transport = fixed_transport("ok")
@@ -84,19 +86,21 @@ class TestFallback(unittest.TestCase):
         agent = LLMAgent("rejection", transport=transport)
         agent.hear("hola")
 
-        text, origin = agent.reply(fallback_line="Mmm, no sé.")
+        text, origin, reason = agent.reply(fallback_line="Mmm, no sé.")
 
         self.assertEqual(text, "Mmm, no sé.")
         self.assertEqual(origin, "fallback")
+        self.assertEqual(reason, "OSError: no network")
 
     def test_if_the_model_returns_empty_uses_the_line(self):
         agent = LLMAgent("validation", transport=fixed_transport("   "))
         agent.hear("hola")
 
-        text, origin = agent.reply(fallback_line="fallback")
+        text, origin, reason = agent.reply(fallback_line="fallback")
 
         self.assertEqual(text, "fallback")
         self.assertEqual(origin, "fallback")
+        self.assertEqual(reason, "empty reply from model")
 
     def test_after_a_fallback_the_history_keeps_the_line(self):
         """The conversation has to stay consistent with what was shown on
@@ -165,7 +169,7 @@ class TestReplyInThread(unittest.TestCase):
         self.assertFalse(pending.ready())   # the transport is still hanging
 
         release.set()
-        self.assertEqual(pending.result(), ("slow reply", "llm"))
+        self.assertEqual(pending.result(), ("slow reply", "llm", None))
         self.assertTrue(pending.ready())
         self.assertEqual(agent.history[-1]["content"], "slow reply")
 
@@ -229,6 +233,80 @@ class TestNoReplyMark(unittest.TestCase):
     def test_leaves_the_mark_in_the_middle(self):
         text = "Me dijiste (no responde) y no entendí."
         self.assertEqual(clean_reply(text, max_chars=100), text)
+
+
+class TestDebatePrompt(unittest.TestCase):
+
+    def test_contains_name_question_and_role(self):
+        system = llm_agent.build_system_prompt(
+            "rejection", name="Nova",
+            question="¿Messi es el mejor de la historia?")
+        self.assertIn("Nova", system)
+        self.assertIn("¿Messi es el mejor de la historia?", system)
+        self.assertIn("RECHAZO", system)
+        self.assertNotIn("{", system)
+
+    def test_without_question_uses_the_situation_prompt(self):
+        system = llm_agent.build_system_prompt("validation")
+        self.assertIn("situación personal", system)
+        self.assertNotIn("{", system)
+
+    def test_agent_uses_debate_prompt_when_given_a_question(self):
+        seen = {}
+
+        def transport(payload):
+            seen["system"] = payload["messages"][0]["content"]
+            return "ok"
+
+        agent = LLMAgent("validation", transport=transport,
+                         name="Julián", question="¿La religión hace bien?")
+        agent.hear("Yo creo que sí.")
+        agent.reply("fallback")
+        self.assertIn("¿La religión hace bien?", seen["system"])
+        self.assertIn("Julián", seen["system"])
+        self.assertIn("VALIDAR", seen["system"])
+
+
+class TestProbe(unittest.TestCase):
+
+    def test_ok(self):
+        ok, latency, error = llm_agent.probe(transport=lambda p: "h")
+        self.assertTrue(ok)
+        self.assertIsNone(error)
+        self.assertGreaterEqual(latency, 0)
+
+    def test_sends_a_one_token_request_with_the_configured_model(self):
+        seen = {}
+
+        def transport(payload):
+            seen.update(payload)
+            return "h"
+
+        llm_agent.probe(transport=transport)
+        self.assertEqual(seen["max_tokens"], 1)
+        self.assertEqual(seen["model"], llm_agent.protocol.prompts()["model"])
+
+    def test_failure(self):
+        def transport(payload):
+            raise RuntimeError("401 Unauthorized")
+
+        ok, latency, error = llm_agent.probe(transport=transport)
+        self.assertFalse(ok)
+        self.assertEqual(error, "RuntimeError: 401 Unauthorized")
+
+
+class TestHttpErrorReason(unittest.TestCase):
+
+    def test_http_error_becomes_a_readable_runtime_error(self):
+        import io
+        import urllib.error
+        err = urllib.error.HTTPError(
+            "https://x", 401, "Unauthorized", {},
+            io.BytesIO(b'{"error":{"message":"bad key"}}'))
+        with self.assertRaises(RuntimeError) as cm:
+            llm_agent._raise_readable(err)
+        self.assertIn("HTTP 401", str(cm.exception))
+        self.assertIn("bad key", str(cm.exception))
 
 
 if __name__ == "__main__":
