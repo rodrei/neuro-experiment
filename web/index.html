@@ -5,37 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Estudio 1 — Conversaciones</title>
   <link rel="stylesheet" href="/static/vendor/jspsych.css">
-  <link rel="stylesheet" href="/static/estilos.css">
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
-<!-- La demo asume teclado y una pantalla ancha: el chat y las grillas del
-     PANAS no entran cómodos en un teléfono. -->
-<div id="aviso-movil">
+<!-- The demo assumes a keyboard and a wide screen: the chat and the PANAS
+     grids do not fit comfortably on a phone. -->
+<div id="mobile-notice">
   <p><strong>Abrí esta página en una computadora.</strong></p>
   <p>El estudio necesita teclado y una pantalla ancha.</p>
 </div>
 
-<div id="inicio">
+<div id="start">
   <h1>Estudio 1 — Conversaciones</h1>
-  <p class="subtitulo">
+  <p class="subtitle">
     Demo para el grupo. No es una corrida con participantes reales.
   </p>
 
-  <form id="formulario">
+  <form id="form">
     <label>
       ID de participante
-      <input name="id_participante" type="text" value="demo" required>
+      <input name="participant_id" type="text" value="demo" required>
     </label>
 
     <label>
       Edad
-      <input name="edad" type="number" min="18" max="99" value="25">
+      <input name="age" type="number" min="18" max="99" value="25">
     </label>
 
     <label>
       Sexo
-      <select name="sexo">
+      <select name="sex">
         <option>mujer</option>
         <option>varón</option>
         <option>otro / prefiero no decir</option>
@@ -44,15 +44,15 @@
 
     <label>
       Condición (entre-sujetos)
-      <select name="condicion_agente">
-        <option value="humano">humano — otra persona</option>
-        <option value="ia">ia — asistente conversacional</option>
+      <select name="agent_condition">
+        <option value="human">humano — otra persona</option>
+        <option value="ai">ia — asistente conversacional</option>
       </select>
     </label>
 
     <label>
       Orden (contrabalanceo)
-      <select name="orden">
+      <select name="order">
         <option value="1">1 — validación primero</option>
         <option value="2">2 — rechazo primero</option>
       </select>
@@ -60,34 +60,34 @@
 
     <label>
       Agente
-      <select name="agente">
-        <option value="guionado">guionado — mensajes fijos</option>
+      <select name="agent">
+        <option value="scripted">guionado — mensajes fijos</option>
         <option value="llm">llm — generados por un modelo</option>
       </select>
     </label>
 
     <label>
       Código de acceso
-      <input name="codigo" type="password" placeholder="dejar vacío si no hay">
+      <input name="access_code" type="password" placeholder="dejar vacío si no hay">
     </label>
 
-    <label class="fila-check">
-      <input name="modo_test" type="checkbox" value="1">
+    <label class="check-row">
+      <input name="test_mode" type="checkbox" value="1">
       Modo test: botón <strong>Saltar</strong> y tecla <strong>F9</strong> en
       cada pantalla. Lo salteado queda vacío en los CSV.
     </label>
 
-    <button type="submit" id="empezar">Empezar</button>
-    <p id="estado-carga">Cargando el protocolo…</p>
+    <button type="submit" id="begin">Empezar</button>
+    <p id="load-status">Cargando el protocolo…</p>
   </form>
 </div>
 
 <div id="jspsych-target"></div>
 
-<!-- Fuera de #jspsych-target a propósito: jsPsych vacía ese contenedor en cada
-     trial. Sólo se muestra en modo test. Abajo a la derecha, como POS_SALTO
-     en el escritorio: ahí no hay nada en ninguna pantalla. -->
-<button id="saltar" type="button" hidden>Saltar (F9)</button>
+<!-- Outside #jspsych-target on purpose: jsPsych empties that container on
+     every trial. Only shown in test mode. Bottom right, like SKIP_POS on the
+     desktop: nothing is there on any screen. -->
+<button id="skip" type="button" hidden>Saltar (F9)</button>
 
 <script src="/static/vendor/jspsych.js"></script>
 <script src="/static/vendor/plugin-html-button-response.js"></script>
@@ -95,10 +95,10 @@
 <script src="/static/vendor/plugin-html-slider-response.js"></script>
 <script src="/static/vendor/plugin-survey-likert.js"></script>
 <script src="/static/vendor/plugin-survey-text.js"></script>
-<script src="/js/protocolo.js"></script>
+<script src="/js/protocol.js"></script>
 <script src="/js/chat-plugin.js"></script>
-<script src="/js/escalas.js"></script>
-<script src="/js/experimento.js"></script>
+<script src="/js/scales.js"></script>
+<script src="/js/experiment.js"></script>
 
 </body>
 </html>
