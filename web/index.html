@@ -9,7 +9,7 @@
 </head>
 <body>
 
-<!-- The demo assumes a keyboard and a wide screen: the chat and the PANAS
+<!-- The study assumes a keyboard and a wide screen: the chat and the PANAS
      grids do not fit comfortably on a phone. -->
 <div id="mobile-notice">
   <p><strong>Abrí esta página en una computadora.</strong></p>
@@ -19,7 +19,7 @@
 <div id="start">
   <h1>Estudio 1 — Conversaciones</h1>
   <p class="subtitle">
-    Demo para el grupo. No es una corrida con participantes reales.
+    Cuatro conversaciones de debate: dos con una persona, dos con una IA.
   </p>
 
   <form id="form">
@@ -43,27 +43,8 @@
     </label>
 
     <label>
-      Condición (entre-sujetos)
-      <select name="agent_condition">
-        <option value="human">humano — otra persona</option>
-        <option value="ai">ia — asistente conversacional</option>
-      </select>
-    </label>
-
-    <label>
-      Orden (contrabalanceo)
-      <select name="order">
-        <option value="1">1 — validación primero</option>
-        <option value="2">2 — rechazo primero</option>
-      </select>
-    </label>
-
-    <label>
-      Agente
-      <select name="agent">
-        <option value="scripted">guionado — mensajes fijos</option>
-        <option value="llm">llm — generados por un modelo</option>
-      </select>
+      Secuencia (cuadrado latino; se sugiere a partir del ID)
+      <select name="sequence" id="sequence"></select>
     </label>
 
     <label>
@@ -74,11 +55,16 @@
     <label class="check-row">
       <input name="test_mode" type="checkbox" value="1">
       Modo test: botón <strong>Saltar</strong> y tecla <strong>F9</strong> en
-      cada pantalla. Lo salteado queda vacío en los CSV.
+      cada pantalla, y aviso en pantalla cuando un turno del LLM cae al
+      fallback. Lo salteado queda vacío en los CSV.
     </label>
 
     <button type="submit" id="begin">Empezar</button>
     <p id="load-status">Cargando el protocolo…</p>
+    <p id="llm-health" class="health pending">Comprobando el LLM…</p>
+    <p class="health-actions">
+      <a href="#" id="llm-retry">Volver a comprobar el LLM</a>
+    </p>
   </form>
 </div>
 

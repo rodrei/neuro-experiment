@@ -141,5 +141,14 @@ function collectMeasures(jsPsych, moment) {
     out[sub + "_total"] = incomplete ? null : values.reduce((a, b) => a + b, 0);
   }
 
+  // Authenticity mean, only when every item was answered (same rule).
+  const authKeys = window.PROTOCOL.scales.authenticity.items.map((it) => it.key);
+  if (authKeys.some((k) => k in out)) {
+    const values = authKeys.map((k) => out[k]);
+    const incomplete = values.some((v) => v === null || v === undefined);
+    out.auth_mean = incomplete
+      ? null : Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(3));
+  }
+
   return out;
 }

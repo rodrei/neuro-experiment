@@ -1,20 +1,22 @@
-/* Chat plugin: a whole episode in a single jsPsych trial.
+/* Chat plugin: a whole debate episode in a single jsPsych trial.
  *
- * Replicates desktop/chat.py and run_episode() from study1.py:
- *
- *   scripted greeting -> the participant tells their situation (minimum
- *   number of characters) -> 3 agent turns with a free reply in between ->
- *   final free-reply window.
+ *   pinned topic card (not a bubble) -> the participant writes their opinion
+ *   (minimum number of characters) -> 3 LLM turns with a free reply in
+ *   between -> final free-reply window.
  *
  * What must hold no matter what:
  *
+ *  - Bubbles are only ever real messages. The chosen question lives in a
+ *    pinned card under the bar, with no author and no bubble class.
  *  - The LATENCY IS DETERMINISTIC (invariant 2): a function of the message
  *    length, not of chance, and it comes from protocol/parameters.json. Two
  *    people who receive the same message wait exactly the same, so the wait
- *    cannot differ between the Human / AI conditions.
- *  - In LLM mode the generation happens WHILE it says "en línea", and the
- *    latency is applied AFTERWARDS, on the length of the generated text.
- *    Otherwise the API time would add to the wait and give it away.
+ *    cannot differ between the person / AI conditions.
+ *  - The generation happens WHILE it says "en línea", and the latency is
+ *    applied AFTERWARDS, on the length of the generated text. Otherwise the
+ *    API time would add to the wait and give it away.
+ *  - If a turn falls back to a fixed line, the origin and the reason go to
+ *    the transcript; in test mode a banner shows the reason on screen.
  *  - Not answering is a data point: the final window may stay empty and that
  *    is recorded as [sin respuesta], not as an error.
  */
@@ -25,11 +27,15 @@ var jsPsychChatEpisode = (function (jspsych) {
   const info = {
     name: "chat-episode",
     parameters: {
-      feedback: { type: jspsych.ParameterType.STRING },     // validation | rejection
-      episode: { type: jspsych.ParameterType.INT },
-      label: { type: jspsych.ParameterType.STRING },        // chat bar
-      agent_mode: { type: jspsych.ParameterType.STRING },   // scripted | llm
+      episode: { type: jspsych.ParameterType.INT },           // 1..4
+      condition: { type: jspsych.ParameterType.STRING },      // e.g. ai_rejection
+      agent_type: { type: jspsych.ParameterType.STRING },     // human | ai
+      feedback: { type: jspsych.ParameterType.STRING },       // validation | rejection
+      interlocutor: { type: jspsych.ParameterType.STRING },   // name
+      label: { type: jspsych.ParameterType.STRING },          // chat bar
+      topic: { type: jspsych.ParameterType.OBJECT },          // {id, category, question}
       access_code: { type: jspsych.ParameterType.STRING },
+      test_mode: { type: jspsych.ParameterType.BOOL },
     },
   };
 
@@ -57,12 +63,26 @@ var jsPsychChatEpisode = (function (jspsych) {
 
     trial(display, trial) {
       const p = parameters();
-      const t0 = performance.now();
+      const t = texts();
+      // Same clock as the timeline's markers, so the transcript and the
+      // events of the four episodes sort correctly into one log.
+      const t0 = window.EXPERIMENT_T0 || performance.now();
 
       const transcript = [];
       const events = [];
       const history = [];          // for the LLM: [{role, content}]
-      const data = { episode: trial.episode, feedback: trial.feedback };
+      const context = {
+        episode: trial.episode,
+        condition: trial.condition,
+        interlocutor: trial.interlocutor,
+        topic: trial.topic.id,
+      };
+      const data = Object.assign({
+        agent_type: trial.agent_type,
+        feedback: trial.feedback,
+        fallback_turns: 0,
+        replies_timed_out: 0,
+      }, context);
 
       const now = () => (performance.now() - t0) / 1000;
 
@@ -82,6 +102,12 @@ var jsPsychChatEpisode = (function (jspsych) {
             <div class="chat-name">${trial.label}</div>
             <div class="chat-status" id="chat-status">en línea</div>
           </div>
+          <div class="fallback-banner" id="fallback-banner" hidden></div>
+          <div class="topic-pinned" id="topic-pinned">
+            <div class="topic-pinned-title">${t.topic_card.title}</div>
+            <div class="topic-pinned-question">${trial.topic.question}</div>
+            <div class="topic-pinned-hint">${fill(t.topic_card.hint, { n: p.min_opinion_chars })}</div>
+          </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input">
             <textarea id="chat-text" placeholder="Escribí tu mensaje…"></textarea>
@@ -95,61 +121,87 @@ var jsPsychChatEpisode = (function (jspsych) {
       const elText = display.querySelector("#chat-text");
       const elSend = display.querySelector("#chat-send");
       const elHelp = display.querySelector("#chat-help");
+      const elBanner = display.querySelector("#fallback-banner");
+      const elPinned = display.querySelector("#topic-pinned");
 
-      function addBubble(author, text, origin, latency) {
+      function addBubble(author, text, origin, reason, latency) {
         const div = document.createElement("div");
         div.className = "bubble " + author;
         div.textContent = text;
         elMessages.appendChild(div);
         elMessages.scrollTop = elMessages.scrollHeight;
-        const row = {
+        const row = Object.assign({
           author: author,
           text: text,
+          origin: origin || (author === "participant" ? "participant" : "llm"),
+          fallback_reason: reason || null,
           t_experiment_s: Number(now().toFixed(4)),
-        };
-        if (origin) row.origin = origin;
-        if (latency !== undefined && latency !== null) {
-          row.latency_s = Number(latency.toFixed(3));
-        }
+          latency_s: (latency === undefined || latency === null)
+            ? null : Number(latency.toFixed(3)),
+        }, context);
         transcript.push(row);
       }
 
       /* Deterministic: same message -> same wait, in both conditions. */
       function latencyOf(text) {
-        const t = p.latency_base + text.length * p.latency_per_char;
-        return Math.min(t, p.latency_max) * 1000;
+        const l = p.latency_base + text.length * p.latency_per_char;
+        return Math.min(l, p.latency_max) * 1000;
       }
 
-      /* Asks the server for the turn. The key lives there, never here. */
-      async function requestTurn(fallbackLine) {
+      /* The experimenter sees why a turn fell back; participants never do. */
+      function showFallback(turn, reason) {
+        data.fallback_turns += 1;
+        if (!trial.test_mode) return;
+        elBanner.hidden = false;
+        elBanner.className = "fallback-banner error";
+        elBanner.textContent = `Fallback (turno ${turn}): ${reason}`;
+      }
+
+      function showRecovered() {
+        if (!trial.test_mode || data.fallback_turns === 0) return;
+        elBanner.className = "fallback-banner warning";
+        elBanner.textContent = data.fallback_turns === 1
+          ? "1 turno cayó al fallback"
+          : `${data.fallback_turns} turnos cayeron al fallback`;
+      }
+
+      /* Asks the server for the turn. The key lives there, never here.
+         Returns [text, origin, reason]. */
+      async function requestTurn(line) {
         try {
           const resp = await fetch("/api/turn", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               feedback: trial.feedback,
+              name: trial.interlocutor,
+              question: trial.topic.question,
               history: history,
-              fallback_line: fallbackLine,
+              fallback_line: line,
               access_code: trial.access_code,
             }),
           });
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          if (!resp.ok) {
+            let detail = "";
+            try { detail = (await resp.json()).error || ""; } catch (e) { /* not json */ }
+            throw new Error("HTTP " + resp.status + (detail ? " " + detail : ""));
+          }
           const obj = await resp.json();
-          return [obj.text, obj.origin];
+          return [obj.text, obj.origin, obj.fallback_reason || null];
         } catch (e) {
-          // Same spirit as the desktop: it never goes down, it falls back.
-          console.warn("turn fell back to the script:", e);
-          return [fallbackLine, "fallback"];
+          // The server itself could not be reached: fall back here, with
+          // the reason, same as the server does for the API.
+          return [line, "fallback", "fetch: " + e.message];
         }
       }
 
-      async function agentSays(text, markerLabel, origin) {
+      async function agentSays(text, markerLabel, origin, reason) {
         elStatus.textContent = "en línea";
         await wait(p.min_reading_time * 1000);
         elStatus.textContent = "escribiendo…";
         await wait(latencyOf(text));
         elStatus.textContent = "en línea";
-        addBubble("agent", text, origin || "script");
+        addBubble("agent", text, origin, reason);
         if (markerLabel) mark(markerLabel, text.slice(0, 60));
         history.push({ role: "assistant", content: text });
       }
@@ -160,6 +212,7 @@ var jsPsychChatEpisode = (function (jspsych) {
         const minChars = options.minChars || 0;
         const marker = options.marker || "participant_message";
         const limit = options.timeout;
+        const filler = options.filler || "";
 
         return new Promise((resolve) => {
           const start = performance.now();
@@ -197,7 +250,7 @@ var jsPsychChatEpisode = (function (jspsych) {
             const clean = elText.value.trim();
             if (!clean || clean.length < minChars) return;
             const latency = (performance.now() - start) / 1000;
-            addBubble("participant", clean, null, latency);
+            addBubble("participant", clean, "participant", null, latency);
             mark(marker, "latency=" + latency.toFixed(2));
             history.push({ role: "user", content: clean });
             finish(clean, latency);
@@ -218,11 +271,15 @@ var jsPsychChatEpisode = (function (jspsych) {
 
           const noReply = () => {
             mark(marker, "no reply");
-            transcript.push({
+            data.replies_timed_out += 1;
+            transcript.push(Object.assign({
               author: "participant",
               text: "[sin respuesta]",
+              origin: "participant",
+              fallback_reason: null,
               t_experiment_s: Number(now().toFixed(4)),
-            });
+              latency_s: null,
+            }, context));
             history.push({ role: "user", content: "(no responde)" });
             finish("", null);
           };
@@ -237,12 +294,12 @@ var jsPsychChatEpisode = (function (jspsych) {
 
           // Test mode: sends whatever there is, and if the message was
           // mandatory fills it in with the protocol's filler so the
-          // conversation still has a topic (above all in LLM mode).
+          // conversation still has an opinion to react to.
           currentSkip = () => {
             const clean = elText.value.trim();
             if (clean && clean.length >= minChars) return send();
             if (minChars) {
-              elText.value = p.test_filler_text;
+              elText.value = filler;
               return send();
             }
             noReply();
@@ -256,45 +313,39 @@ var jsPsychChatEpisode = (function (jspsych) {
       const self = this;
 
       (async function run() {
-        mark("episode_start", trial.episode + "_" + trial.feedback);
+        mark("episode_start", trial.episode + "_" + trial.condition);
 
-        // The greeting that asks for the situation is ALWAYS scripted: it
-        // has to ask for it no matter what, and it is identical across
-        // conditions.
-        const greetingKey = trial.episode === 1 ? "greeting" : "greeting2";
-        await agentSays(scriptLine(greetingKey, 0), "agent_asks_situation", "script");
-
-        const situation = await waitForParticipant({
+        // The participant opens: their opinion on the pinned question.
+        const opinion = await waitForParticipant({
           timeout: p.situation_timeout,
-          minChars: p.min_situation_chars,
-          marker: "situation_revealed",
+          minChars: p.min_opinion_chars,
+          marker: "opinion_sent",
+          filler: p.test_filler_opinion,
         });
-        data.situation = situation.text;
-        data.situation_chars = situation.text.length;
-        data.situation_latency_s = situation.latency;
+        data.opinion = opinion.text;
+        data.opinion_chars = opinion.text.length;
+        data.opinion_latency_s = opinion.latency;
+        elPinned.classList.add("answered");
 
         for (const turn of [1, 2, 3]) {
-          const line = scriptLine(trial.feedback, turn);
-          let text = line;
-          let origin = "script";
-          if (trial.agent_mode === "llm") {
-            // Generated while the screen says "en línea"; the latency is
-            // applied afterwards, on the length of the generated text.
-            const [t, o] = await requestTurn(line);
-            text = t;
-            origin = o;
-          }
-          await agentSays(text, "agent_message_" + turn, origin);
+          // Generated while the screen says "en línea"; the latency is
+          // applied afterwards, on the length of the generated text.
+          const [text, origin, reason] = await requestTurn(
+            fallbackLine(trial.feedback, turn));
+          if (origin === "fallback") showFallback(turn, reason);
+          else showRecovered();
+          await agentSays(text, "agent_message_" + turn, origin, reason);
 
           if (turn < 3) {
             const r = await waitForParticipant({ timeout: 90 });
             data["reply_" + turn] = r.text;
+            data["reply_" + turn + "_chars"] = r.text.length;
             data["reply_latency_" + turn] = r.latency;
           }
         }
 
         // Final window: answering or not is a behavioral DV of the design.
-        mark("free_reply_start", trial.feedback);
+        mark("free_reply_start", trial.condition);
         const final = await waitForParticipant({
           timeout: p.free_reply_window,
         });
@@ -302,7 +353,7 @@ var jsPsychChatEpisode = (function (jspsych) {
         data.final_latency_s = final.latency;
         data.replied_at_end = final.text ? 1 : 0;
 
-        mark("episode_end", trial.episode + "_" + trial.feedback);
+        mark("episode_end", trial.episode + "_" + trial.condition);
 
         data.transcript = transcript;
         data.events = events;

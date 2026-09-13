@@ -76,6 +76,18 @@ button:disabled, .jspsych-btn:disabled {
 
 #load-status { font-size: .85rem; color: var(--muted); margin-top: .8rem; }
 
+/* LLM pre-flight line under the form: a coloured dot and the verdict. */
+.health { font-size: .85rem; margin: .4rem 0 0; }
+.health::before { content: "●"; margin-right: .4rem; }
+.health.ok { color: #2E6B3F; }
+.health.ok::before { color: #2E8B57; }
+.health.error { color: #8C2B2B; }
+.health.error::before { color: #C0392B; }
+.health.pending { color: var(--muted); }
+.health.pending::before { color: var(--muted); }
+.health-actions { font-size: .8rem; margin: .2rem 0 0; }
+.health-actions a { color: var(--accent); }
+
 #form .check-row {
   display: flex;
   gap: .5rem;
@@ -99,16 +111,83 @@ button:disabled, .jspsych-btn:disabled {
 /* ------------------------------------------------------------------ */
 /* jsPsych screens                                                     */
 /* ------------------------------------------------------------------ */
+/* Every screen is centred in the viewport. jsPsych's own content wrapper
+   centres with `margin: auto`, which only works when the display element
+   has a height: here it gets the whole viewport. Screens taller than the
+   viewport (the PANAS pages) start at the top and scroll. */
 #jspsych-target { display: none; }
-#jspsych-target.active { display: block; }
-
-.jspsych-content { max-width: 46rem; }
+#jspsych-target.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+#jspsych-target.active .jspsych-display-element {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+#jspsych-target.active .jspsych-content-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+.jspsych-content {
+  max-width: 46rem;
+  margin: 2rem auto;
+}
 
 .screen-title {
   color: var(--accent);
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 1rem;
+}
+
+.screen-lead {
+  font-size: 1.05rem;
+  margin-bottom: 1.2rem;
+}
+
+/* Topic pick: one card per remaining question. */
+#jspsych-html-button-response-btngroup {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .5rem;
+  width: min(40rem, 90vw);
+  margin: 0 auto;
+}
+.topic-card {
+  display: block;
+  width: 100%;
+  padding: .9rem 1.2rem;
+  text-align: left;
+  background: #FFFFFF;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.topic-card:hover, .topic-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(48, 112, 198, .15);
+  outline: none;
+}
+.topic-category {
+  display: block;
+  font-size: .75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.topic-question {
+  display: block;
+  font-size: 1.05rem;
+  margin-top: .2rem;
+  line-height: 1.35;
 }
 
 .screen-body {
@@ -132,8 +211,8 @@ button:disabled, .jspsych-btn:disabled {
 /* ------------------------------------------------------------------ */
 .chat {
   width: min(46rem, 92vw);
-  height: 80vh;
-  margin: 1rem auto;
+  height: min(80vh, 44rem);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   background: var(--background);
@@ -151,6 +230,37 @@ button:disabled, .jspsych-btn:disabled {
 
 .chat-name { font-size: .95rem; }
 .chat-status { font-size: .8rem; color: var(--muted); min-height: 1.1em; }
+
+/* The chosen question, pinned under the bar. Deliberately NOT a bubble: no
+   tail, no author, different background, full width. */
+.topic-pinned {
+  margin: .8rem 1rem 0;
+  padding: .7rem .9rem;
+  background: #FFF8E6;
+  border: 1px solid #F0DDA6;
+  border-radius: 8px;
+  text-align: left;
+}
+.topic-pinned-title {
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.topic-pinned-question { font-size: 1rem; margin: .2rem 0; line-height: 1.35; }
+.topic-pinned-hint { font-size: .8rem; color: var(--muted); }
+.topic-pinned.answered .topic-pinned-hint { display: none; }
+
+/* Only in test mode: why a turn fell back to a fixed line. */
+.fallback-banner {
+  margin: .6rem 1rem 0;
+  padding: .45rem .8rem;
+  border-radius: 6px;
+  font-size: .85rem;
+  text-align: left;
+}
+.fallback-banner.error { background: #FDECEC; color: #A32020; border: 1px solid #F3B4B4; }
+.fallback-banner.warning { background: #FFF4DB; color: #7A5200; border: 1px solid #F0D48A; }
 
 .chat-messages {
   flex: 1;

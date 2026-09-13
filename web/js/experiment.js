@@ -1,15 +1,40 @@
-/* The timeline: a direct transcription of main() in desktop/study1.py.
+/* The timeline of the debate design (2x2 within-subject).
  *
- * initial dialog -> consent -> baseline -> cover story -> 2 chat episodes
- * (each followed by its measures block) -> manipulation check -> debriefing
- * -> re-consent -> submission. */
+ * start form -> consent -> baseline -> instructions -> 4 episodes, each:
+ * interlocutor intro -> topic pick -> connecting -> chat -> measures
+ * (-> pause) -> debriefing -> close -> submission.
+ *
+ * The order of the four conditions comes from protocol/sequences.json (a
+ * Latin square indexed by the sequence chosen on the start form). */
 
 let SESSION_CONFIG = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const status = document.getElementById("load-status");
   const button = document.getElementById("begin");
+  const idField = document.querySelector("input[name=participant_id]");
+  const sequenceSelect = document.getElementById("sequence");
   button.disabled = true;
+
+  for (let i = 1; i <= 4; i++) {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = String(i);
+    sequenceSelect.appendChild(option);
+  }
+
+  // Sequence suggested from the id, so the four rows of the Latin square
+  // spread over participants without anyone thinking about it. Stops
+  // following the id once the experimenter picks one by hand.
+  let sequenceTouched = false;
+  const suggest = () => {
+    if (sequenceTouched) return;
+    sequenceSelect.value = String(suggestedSequence(idField.value));
+  };
+  idField.addEventListener("input", suggest);
+  sequenceSelect.addEventListener("change", () => { sequenceTouched = true; });
+  suggest();
+
   try {
     await loadProtocol();
     status.textContent = "Protocolo cargado.";
@@ -19,11 +44,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  checkHealth(false);
+  document.getElementById("llm-retry").addEventListener("click", (e) => {
+    e.preventDefault();
+    checkHealth(true);
+  });
+
   document.getElementById("form").addEventListener("submit", (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     SESSION_CONFIG = Object.fromEntries(data.entries());
-    SESSION_CONFIG.order = parseInt(SESSION_CONFIG.order, 10);
+    SESSION_CONFIG.sequence = parseInt(SESSION_CONFIG.sequence, 10);
     // An unchecked checkbox is not in the FormData.
     SESSION_CONFIG.test_mode = data.get("test_mode") === "1";
     document.getElementById("start").style.display = "none";
@@ -32,12 +63,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
+function suggestedSequence(id) {
+  const sum = Array.from(String(id || "")).reduce((a, c) => a + c.charCodeAt(0), 0);
+  return (sum % 4) + 1;
+}
+
+/* Pre-flight: is the LLM going to answer? Shown under the start form so a
+ * dead key or an unreachable API is known before the session, not after. */
+async function checkHealth(refresh) {
+  const el = document.getElementById("llm-health");
+  el.className = "health pending";
+  el.textContent = "Comprobando el LLM…";
+  try {
+    const resp = await fetch("/api/health" + (refresh ? "?refresh=1" : ""));
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const llm = (await resp.json()).llm;
+    if (llm.reachable) {
+      el.className = "health ok";
+      el.textContent = `LLM listo: ${llm.model} respondió en ${llm.latency_s.toFixed(1)} s (key: ${llm.key_source})`;
+    } else {
+      el.className = "health error";
+      el.textContent = llm.key_found
+        ? `LLM no disponible: ${llm.error}`
+        : "LLM no disponible: no hay API key (OPENROUTER_API_KEY u openrouter_key.txt). Los turnos van a salir de las líneas fijas.";
+    }
+  } catch (e) {
+    el.className = "health error";
+    el.textContent = "No se pudo consultar /api/health: " + e.message;
+  }
+}
+
 function runExperiment() {
   const p = parameters();
   const txt = texts();
   const cfg = SESSION_CONFIG;
   const events = [];
   const t0 = performance.now();
+  window.EXPERIMENT_T0 = t0;      // the chat plugin stamps with the same clock
 
   function record(label, detail) {
     events.push({
@@ -66,7 +128,7 @@ function runExperiment() {
 
   const timeline = [];
 
-  timeline.push(mark("experiment_start", cfg.agent_condition));
+  timeline.push(mark("experiment_start", "seq" + cfg.sequence));
 
   // Consent
   timeline.push(textScreen(txt.consent.title, txt.consent.body));
@@ -81,6 +143,7 @@ function runExperiment() {
                <div class="rest-caption">${txt.rest_caption}</div>`,
     choices: "NO_KEYS",
     trial_duration: p.baseline_duration * 1000,
+    data: { screen: "rest" },
   });
   timeline.push(mark("baseline_end"));
 
@@ -89,71 +152,111 @@ function runExperiment() {
   for (const t of measuresBlock("baseline", false, mark)) timeline.push(t);
   timeline.push(mark("measures_end", "baseline"));
 
-  // Cover story: the between-subjects factor is manipulated here.
-  timeline.push(textScreen(txt.cover_story_title,
-                           txt.cover_story[cfg.agent_condition]));
+  // General instructions for the four debates.
+  timeline.push(textScreen(txt.instructions.title, txt.instructions.body));
 
-  // The two episodes, in the counterbalanced order.
-  const sequence = cfg.order === 1
-    ? ["validation", "rejection"]
-    : ["rejection", "validation"];
+  // The four episodes, in the order of the Latin square row.
+  const sequence = window.PROTOCOL.sequences[String(cfg.sequence)];
+  const interlocutors = window.PROTOCOL.interlocutors;
+  const usedInterlocutors = [];
+  const usedTopics = [];
+  const plan = [];      // filled here; read by submit()
 
-  sequence.forEach((feedback, i) => {
-    const episodeNumber = i + 1;
+  sequence.forEach((condition, i) => {
+    const episode = i + 1;
+    const [agentType, feedback] = condition.split("_");
+    const moment = "ep" + episode;
+
+    // Names are assigned by position within the agent type, not by
+    // feedback: the sequences balance name x feedback across participants.
+    const who = interlocutors.find(
+      (it) => it.type === agentType && !usedInterlocutors.includes(it.name));
+    usedInterlocutors.push(who.name);
+    const entry = { episode, condition, agent_type: agentType, feedback,
+                    interlocutor: who.name, topic: null };
+    plan.push(entry);
+
+    // Interlocutor intro: honest, no persuasion.
+    timeline.push(mark("interlocutor_intro", episode + "_" + condition));
+    timeline.push(Object.assign(
+      textScreen(txt.interlocutor_intro.title,
+                 fill(txt.interlocutor_intro[agentType], { name: who.name })),
+      { data: { screen: "intro" } }));
+
+    // Topic pick: the questions not used yet in this session, as cards.
+    timeline.push(mark("topic_shown", String(episode)));
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `<div class="screen-title">${txt.topic_pick.title}</div>
+                 <div class="screen-lead">${txt.topic_pick.lead}</div>`,
+      choices: () => remainingTopics(usedTopics).map((t) => t.id),
+      button_html: (choice) => {
+        const topic = window.PROTOCOL.topics.find((t) => t.id === choice);
+        return `<button class="topic-card" data-topic="${topic.id}">
+                  <span class="topic-category">${topic.category}</span>
+                  <span class="topic-question">${topic.question}</span>
+                </button>`;
+      },
+      button_layout: "flex",
+      data: { screen: "topic-pick", episode: episode },
+      on_finish: (d) => {
+        const remaining = remainingTopics(usedTopics);
+        // A skipped screen (test mode) picks the first remaining topic so
+        // the episode still has a question.
+        const topic = d.response === null || d.response === undefined
+          ? remaining[0] : remaining[d.response];
+        usedTopics.push(topic.id);
+        entry.topic = topic;
+        d.topic_id = topic.id;
+        record("topic_chosen", topic.id);
+      },
+    });
 
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `<div class="rest-caption">${txt.connecting}</div>`,
       choices: "NO_KEYS",
       trial_duration: p.connecting_duration * 1000,
+      data: { screen: "connecting" },
     });
 
     timeline.push({
       type: jsPsychChatEpisode,
+      episode: episode,
+      condition: condition,
+      agent_type: agentType,
       feedback: feedback,
-      episode: episodeNumber,
-      label: txt.agent_label[cfg.agent_condition],
-      agent_mode: cfg.agent,
+      interlocutor: who.name,
+      label: fill(txt.interlocutor_label[agentType], { name: who.name }),
+      topic: () => entry.topic,
       access_code: cfg.access_code || "",
+      test_mode: cfg.test_mode,
     });
 
-    timeline.push(mark("measures_start", feedback));
-    for (const t of measuresBlock(feedback, true, mark)) timeline.push(t);
-    timeline.push(mark("measures_end", feedback));
+    timeline.push(mark("measures_start", moment + "_" + condition));
+    for (const t of measuresBlock(moment, true, mark)) timeline.push(t);
+    timeline.push(mark("measures_end", moment + "_" + condition));
 
     if (i < sequence.length - 1) {
-      timeline.push(textScreen(txt.pause.title, txt.pause.body));
+      timeline.push(Object.assign(textScreen(txt.pause.title, txt.pause.body),
+                                  { data: { screen: "pause" } }));
     }
   });
 
-  // Manipulation check + funnel debriefing
-  timeline.push(mark("manipulation_check"));
-  const check = txt.manipulation_check;
-  timeline.push(sliderScale(check.believed_real_person,
-                            "final_believed_real_person"));
-  timeline.push({
-    type: jsPsychSurveyText,
-    preamble: "<p class=\"prompt\">Últimas preguntas.</p>",
-    questions: [
-      { prompt: check.suspicion_1, rows: 4, columns: 60, required: true },
-      { prompt: check.suspicion_2, rows: 4, columns: 60, required: true },
-      { prompt: check.suspicion_3, rows: 4, columns: 60, required: true },
-    ],
-    button_label: "Continuar",
-    data: { block: "suspicion" },
-  });
+  timeline.push(Object.assign(
+    textScreen(txt.debriefing.title, txt.debriefing.body),
+    { data: { screen: "debriefing" } }));
 
-  // Debriefing: the version of the mode that actually ran.
-  timeline.push(textScreen(txt.debriefing.title,
-                           txt.debriefing.body[cfg.agent]));
-
-  timeline.push(sliderScale(check.consents_after_debriefing,
-                            "final_consents_after_debriefing"));
-
-  timeline.push(textScreen(null, txt.closing.body, "Terminar"));
+  timeline.push(Object.assign(textScreen(null, txt.closing.body, "Terminar"),
+                              { data: { screen: "close" } }));
   timeline.push(mark("experiment_end"));
 
+  jsPsych.plan = plan;
   jsPsych.run(timeline);
+}
+
+function remainingTopics(usedTopics) {
+  return window.PROTOCOL.topics.filter((t) => !usedTopics.includes(t.id));
 }
 
 /* Test mode: Skip button and F9 key to walk the flow without answering.
@@ -198,37 +301,15 @@ async function submit(jsPsych, generalEvents) {
     participant_id: cfg.participant_id,
     age: cfg.age,
     sex: cfg.sex,
-    agent_condition: cfg.agent_condition,
-    order: cfg.order,
-    agent: cfg.agent,
+    sequence: cfg.sequence,
     test_mode: cfg.test_mode,
+    llm_model: window.PROTOCOL.prompts.model,
   };
-  if (cfg.agent === "llm") {
-    responses.llm_model = window.PROTOCOL.prompts.model;
+
+  const baseline = collectMeasures(jsPsych, "baseline");
+  for (const [key, value] of Object.entries(baseline)) {
+    responses["baseline_" + key] = value;
   }
-
-  for (const moment of ["baseline", "validation", "rejection"]) {
-    const measures = collectMeasures(jsPsych, moment);
-    for (const [key, value] of Object.entries(measures)) {
-      responses[moment + "_" + key] = value;
-    }
-  }
-
-  // A skipped screen brings no response. It goes as null, not undefined:
-  // JSON.stringify drops undefined keys and the row would disappear from the
-  // CSV instead of staying empty, as it does on the desktop.
-  jsPsych.data.get().filter({ trial_type: "html-slider-response" }).values()
-    .forEach((row) => {
-      if (row.key && row.key.startsWith("final_")) {
-        responses[row.key.slice("final_".length)] = valueOrNull(row.response);
-      }
-    });
-
-  const suspicion = jsPsych.data.get().filter({ block: "suspicion" }).values()[0];
-  const resp = (suspicion && suspicion.response) || {};
-  responses.suspicion_1 = valueOrNull(resp.Q0);
-  responses.suspicion_2 = valueOrNull(resp.Q1);
-  responses.suspicion_3 = valueOrNull(resp.Q2);
 
   const episodes = jsPsych.data.get()
     .filter({ trial_type: "chat-episode" }).values();
@@ -237,17 +318,36 @@ async function submit(jsPsych, generalEvents) {
   let chat = [];
   let events = generalEvents.slice();
 
-  episodes.forEach((ep) => {
-    const row = Object.assign({}, ep);
-    chat = chat.concat(row.transcript || []);
-    events = events.concat(row.events || []);
-    delete row.transcript;
-    delete row.events;
-    // jsPsych adds its own internal fields; only the design's go out.
-    ["trial_type", "trial_index", "time_elapsed", "plugin_version",
-     "internal_node_id"].forEach((k) => delete row[k]);
-    behavioral.push(row);
-    responses["situation_" + row.episode] = row.situation;
+  jsPsych.plan.forEach((entry) => {
+    const prefix = "ep" + entry.episode + "_";
+    responses[prefix + "condition"] = entry.condition;
+    responses[prefix + "agent_type"] = entry.agent_type;
+    responses[prefix + "feedback"] = entry.feedback;
+    responses[prefix + "topic"] = entry.topic ? entry.topic.id : null;
+    responses[prefix + "interlocutor"] = entry.interlocutor;
+
+    const ep = episodes.find((e) => e.episode === entry.episode);
+    // A skipped screen brings no response. It goes as null, not undefined:
+    // JSON.stringify drops undefined keys and the row would disappear from
+    // the CSV instead of staying empty, as it does on the desktop.
+    responses[prefix + "opinion"] = valueOrNull(ep && ep.opinion);
+
+    const measures = collectMeasures(jsPsych, "ep" + entry.episode);
+    for (const [key, value] of Object.entries(measures)) {
+      responses[prefix + key] = value;
+    }
+
+    if (ep) {
+      const row = Object.assign({}, ep);
+      chat = chat.concat(row.transcript || []);
+      events = events.concat(row.events || []);
+      delete row.transcript;
+      delete row.events;
+      // jsPsych adds its own internal fields; only the design's go out.
+      ["trial_type", "trial_index", "time_elapsed", "plugin_version",
+       "internal_node_id"].forEach((k) => delete row[k]);
+      behavioral.push(row);
+    }
   });
 
   events.sort((a, b) => a.t_experiment_s - b.t_experiment_s);
@@ -255,7 +355,7 @@ async function submit(jsPsych, generalEvents) {
   const payload = {
     info: {
       participant_id: cfg.participant_id,
-      agent_condition: cfg.agent_condition,
+      sequence: cfg.sequence,
     },
     responses: responses,
     behavioral: behavioral,
