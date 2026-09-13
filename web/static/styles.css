@@ -1,0 +1,366 @@
+/* Study 1 — web demo.
+   The colours replicate those of desktop/config.py so the two versions look
+   like the same study. */
+
+:root {
+  --background: #F2F3F5;
+  --text: #1C1C1E;
+  --muted: #8A8A8E;
+  --bubble-agent: #FFFFFF;
+  --bubble-participant: #D8E7FA;
+  --bar: #FFFFFF;
+  --accent: #3070C6;
+  --border: #D0D0D4;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ */
+/* Start screen                                                        */
+/* ------------------------------------------------------------------ */
+#start {
+  max-width: 34rem;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: #FFFFFF;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+
+#start h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+#start .subtitle { color: var(--muted); margin: 0 0 1.5rem; }
+
+#form label {
+  display: block;
+  margin-bottom: .9rem;
+  font-size: .9rem;
+  color: var(--muted);
+}
+
+#form input,
+#form select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: .25rem;
+  padding: .5rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #FFFFFF;
+}
+
+button, .jspsych-btn {
+  padding: .6rem 1.4rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #FFFFFF;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:disabled, .jspsych-btn:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
+#load-status { font-size: .85rem; color: var(--muted); margin-top: .8rem; }
+
+/* LLM pre-flight line under the form: a coloured dot and the verdict. */
+.health { font-size: .85rem; margin: .4rem 0 0; }
+.health::before { content: "●"; margin-right: .4rem; }
+.health.ok { color: #2E6B3F; }
+.health.ok::before { color: #2E8B57; }
+.health.error { color: #8C2B2B; }
+.health.error::before { color: #C0392B; }
+.health.pending { color: var(--muted); }
+.health.pending::before { color: var(--muted); }
+.health-actions { font-size: .8rem; margin: .2rem 0 0; }
+.health-actions a { color: var(--accent); }
+
+#form .check-row {
+  display: flex;
+  gap: .5rem;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+#form .check-row input { width: auto; margin: .2rem 0 0; }
+
+/* Test-mode skip button. Muted grey, like on the desktop, so it does not
+   compete with the real buttons. */
+#skip {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1000;
+  padding: .4rem .9rem;
+  font-size: .85rem;
+  background: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* jsPsych screens                                                     */
+/* ------------------------------------------------------------------ */
+/* Every screen is centred in the viewport. jsPsych's own content wrapper
+   centres with `margin: auto`, which only works when the display element
+   has a height: here it gets the whole viewport. Screens taller than the
+   viewport (the PANAS pages) start at the top and scroll. */
+#jspsych-target { display: none; }
+#jspsych-target.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+#jspsych-target.active .jspsych-display-element {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+#jspsych-target.active .jspsych-content-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+.jspsych-content {
+  max-width: 46rem;
+  margin: 2rem auto;
+}
+
+.screen-title {
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.screen-lead {
+  font-size: 1.05rem;
+  margin-bottom: 1.2rem;
+}
+
+/* Topic pick: one card per remaining question. */
+#jspsych-html-button-response-btngroup {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .4rem;
+  width: min(40rem, 90vw);
+  margin: 0 auto;
+}
+.topic-card {
+  display: block;
+  width: 100%;
+  padding: .55rem 1.1rem;
+  text-align: left;
+  background: #FFFFFF;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.topic-card:hover, .topic-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(48, 112, 198, .15);
+  outline: none;
+}
+.topic-category {
+  display: block;
+  font-size: .75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.topic-question {
+  display: block;
+  font-size: 1rem;
+  margin-top: .1rem;
+  line-height: 1.3;
+}
+
+.screen-body {
+  text-align: left;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.prompt { font-size: 1.15rem; margin-bottom: 1.5rem; }
+
+.fixation-cross { font-size: 4rem; }
+.rest-caption { color: var(--muted); margin-top: 3rem; }
+
+/* PANAS as a grid: 10 items per page, statement on the left, scale on the
+   right, like the desktop grid. The plugin injects its own <style> with
+   40px/35px paddings; the ids give these rules precedence. */
+#jspsych-survey-likert-form {
+  display: grid;
+  grid-template-columns: 11rem minmax(24rem, 30rem);
+  align-items: center;
+  column-gap: 1.2rem;
+  row-gap: .15rem;
+  justify-content: center;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-statement {
+  text-align: right;
+  font-size: .95rem;
+  padding-top: 0;
+  margin: 0;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-opts {
+  font-size: .72rem;
+  padding: 0 0 .9rem;
+  margin: 0;
+}
+#jspsych-survey-likert-form .jspsych-survey-likert-opts:before { top: 10px; }
+#jspsych-survey-likert-form #jspsych-survey-likert-next {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: .8rem;
+}
+.jspsych-survey-likert-preamble .prompt { margin-bottom: 1rem; }
+
+/* ------------------------------------------------------------------ */
+/* Chat                                                                */
+/* ------------------------------------------------------------------ */
+.chat {
+  width: min(46rem, 92vw);
+  height: min(80vh, 44rem);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+
+.chat-bar {
+  background: var(--bar);
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.chat-name { font-size: .95rem; }
+.chat-status { font-size: .8rem; color: var(--muted); min-height: 1.1em; }
+
+/* The chosen question, pinned under the bar. Deliberately NOT a bubble: no
+   tail, no author, different background, full width. */
+.topic-pinned {
+  margin: .8rem 1rem 0;
+  padding: .7rem .9rem;
+  background: #FFF8E6;
+  border: 1px solid #F0DDA6;
+  border-radius: 8px;
+  text-align: left;
+}
+.topic-pinned-title {
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.topic-pinned-question { font-size: 1rem; margin: .2rem 0; line-height: 1.35; }
+.topic-pinned-hint { font-size: .8rem; color: var(--muted); }
+.topic-pinned.answered .topic-pinned-hint { display: none; }
+
+/* Only in test mode: why a turn fell back to a fixed line. */
+.fallback-banner {
+  margin: .6rem 1rem 0;
+  padding: .45rem .8rem;
+  border-radius: 6px;
+  font-size: .85rem;
+  text-align: left;
+}
+.fallback-banner.error { background: #FDECEC; color: #A32020; border: 1px solid #F3B4B4; }
+.fallback-banner.warning { background: #FFF4DB; color: #7A5200; border: 1px solid #F0D48A; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+
+.bubble {
+  max-width: 62%;
+  padding: .6rem .8rem;
+  border-radius: 12px;
+  font-size: .97rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.bubble.agent {
+  align-self: flex-start;
+  background: var(--bubble-agent);
+  border: 1px solid #E6E6EA;
+}
+
+.bubble.participant {
+  align-self: flex-end;
+  background: var(--bubble-participant);
+}
+
+.chat-input {
+  display: flex;
+  gap: .5rem;
+  padding: .7rem;
+  background: var(--bar);
+  border-top: 1px solid var(--border);
+}
+
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  height: 3.4rem;
+  padding: .5rem;
+  font-family: inherit;
+  font-size: .97rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chat-help {
+  font-size: .78rem;
+  color: var(--muted);
+  padding: 0 .8rem .6rem;
+  text-align: right;
+  background: var(--bar);
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile notice                                                       */
+/* ------------------------------------------------------------------ */
+#mobile-notice { display: none; }
+
+@media (max-width: 700px) {
+  #mobile-notice {
+    display: block;
+    margin: 3rem auto;
+    padding: 2rem;
+    max-width: 20rem;
+    text-align: center;
+    background: #FFFFFF;
+    border-radius: 10px;
+  }
+  #start, #jspsych-target { display: none !important; }
+}

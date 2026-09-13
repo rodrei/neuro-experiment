@@ -1,0 +1,88 @@
+{
+  "connecting": "Conectando…",
+
+  "consent": {
+    "title": "Antes de empezar",
+    "body": "Gracias por participar.\n\nVas a tener cuatro conversaciones breves por chat, cada una sobre un tema de debate que vas a elegir vos. En algunas vas a hablar con otra persona y en otras con un asistente de inteligencia artificial: antes de cada conversación te vamos a decir con quién.\n\nEntre una conversación y otra vamos a hacerte algunas preguntas.\n\nDurante todo el estudio vamos a registrar tu actividad electrodérmica con los sensores que tenés en los dedos. No duele y no vas a sentir nada.\n\nPodés dejar de participar en cualquier momento, sin dar explicaciones y sin ninguna consecuencia."
+  },
+  "rest": {
+    "title": "Registro en reposo",
+    "body": "Primero necesitamos unos minutos de registro en reposo.\n\nVas a ver una cruz en el centro de la pantalla. Quedate cómoda/o, mirala y tratá de moverte lo menos posible."
+  },
+  "rest_caption": "Descansá. Mirá la cruz y tratá de quedarte quieta/o.",
+
+  "instructions": {
+    "title": "Las conversaciones",
+    "body": "Ahora vienen las cuatro conversaciones.\n\nAntes de cada una vas a elegir un tema entre varios, y te vamos a presentar a la persona o al asistente con quien vas a hablar.\n\nEmpezás vos: escribís tu opinión sobre el tema y después charlan un rato. No hay respuestas correctas; lo que nos interesa es lo que pensás vos."
+  },
+  "interlocutor_intro": {
+    "title": "Tu próxima conversación",
+    "human": "Tu próxima conversación es con {name}, otra persona que está participando del estudio en este momento desde otra sala.\n\nNo la conocés y no te conoce. Va a leer lo que escribas y te va a responder en tiempo real.",
+    "ai": "Tu próxima conversación es con {name}, un asistente conversacional de inteligencia artificial basado en un modelo de lenguaje.\n\nNo es una persona. Va a leer lo que escribas y te va a responder en tiempo real."
+  },
+  "interlocutor_label": {
+    "human": "{name} · otra persona participando del estudio",
+    "ai": "{name} · asistente conversacional (IA)"
+  },
+  "topic_pick": {
+    "title": "Elegí un tema",
+    "lead": "¿Sobre qué querés dar tu opinión en esta conversación? Elegí uno."
+  },
+  "topic_card": {
+    "title": "Tema de esta conversación",
+    "hint": "Escribí tu opinión para empezar (mínimo {n} caracteres)."
+  },
+  "pause": {
+    "title": "Pausa",
+    "body": "Terminó esta conversación.\n\nCuando estés lista/o, seguimos con la siguiente."
+  },
+  "debriefing": {
+    "title": "Sobre lo que acabás de hacer",
+    "body": "Gracias por las cuatro conversaciones.\n\nQueremos contarte algo sobre cómo estaba armado el estudio. En cada conversación, la persona o el asistente con quien hablaste tenía asignado de antemano un papel: en algunas le tocaba acompañarte y valorar tu opinión, y en otras mostrarse distante y desinteresado. Ese papel estaba decidido por el diseño del estudio antes de que llegaras, y no tuvo nada que ver con vos ni con lo que pensás.\n\nPor eso, si alguien se mostró frío o desestimó lo que dijiste, no fue una opinión sobre vos ni sobre tus ideas: era el papel que le tocaba en esa conversación.\n\nLo que nos interesa estudiar es cómo reaccionamos, emocional y fisiológicamente, cuando nos validan o nos rechazan, y si eso cambia según hablemos con una persona o con una inteligencia artificial.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando."
+  },
+  "closing": {
+    "body": "Listo. Muchas gracias por participar.",
+    "footer": "Presioná ESPACIO para terminar"
+  },
+
+  "agent_name": "Alex",
+  "agent_label": {
+    "human": "Alex · otra persona participando del estudio",
+    "ai": "Alex · asistente conversacional (IA)"
+  },
+  "cover_story_title": "La conversación",
+  "cover_story": {
+    "human": "En unos segundos vas a quedar conectada/o por chat con OTRA PERSONA que está participando del estudio en este momento, desde otra sala.\n\nEs alguien que no conocés y que tampoco te conoce. Va a leer lo que escribas y te va a responder en tiempo real.\n\nVan a tener dos conversaciones. En cada una te va a pedir que le cuentes algo que te haya pasado.",
+    "ai": "En unos segundos vas a quedar conectada/o por chat con un ASISTENTE CONVERSACIONAL DE INTELIGENCIA ARTIFICIAL, basado en un modelo de lenguaje.\n\nNo es una persona. Va a leer lo que escribas y te va a responder en tiempo real.\n\nVan a tener dos conversaciones. En cada una te va a pedir que le cuentes algo que te haya pasado."
+  },
+  "desktop_consent": {
+    "title": "Antes de empezar",
+    "body": "Gracias por participar.\n\nVas a tener dos conversaciones breves por chat y vamos a hacerte algunas preguntas entre una y otra.\n\nDurante todo el estudio vamos a registrar tu actividad electrodérmica con los sensores que tenés en los dedos. No duele y no vas a sentir nada.\n\nPodés dejar de participar en cualquier momento, sin dar explicaciones y sin ninguna consecuencia."
+  },
+  "desktop_pause": {
+    "title": "Pausa",
+    "body": "Terminó la primera conversación.\n\nCuando estés lista/o, seguimos con la segunda."
+  },
+  "desktop_debriefing": {
+    "title": "Sobre lo que acabás de hacer",
+    "body": {
+      "scripted": "Ahora tenemos que contarte algo importante.\n\nEn las dos conversaciones NO había ni otra persona ni una inteligencia artificial respondiéndote. Todos los mensajes que recibiste estaban escritos de antemano y eran exactamente los mismos para todos los participantes.\n\nLo hicimos así porque queríamos estudiar si CREER que del otro lado hay una persona o una IA cambia cómo reaccionamos, emocional y fisiológicamente. Para eso el contenido tenía que ser idéntico.\n\nLos mensajes de rechazo no tenían nada que ver con vos ni con lo que contaste: eran los mismos para todo el mundo.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando.",
+      "llm": "Ahora tenemos que contarte algo importante.\n\nEn las dos conversaciones no había otra persona: del otro lado no hubo nadie leyéndote en vivo. Los mensajes los fue generando un modelo de lenguaje en el momento, a partir de lo que vos ibas escribiendo. El primer mensaje, el que te pedía que contaras una situación, era fijo e igual para todo el mundo.\n\nEn cada conversación el modelo tenía asignado de antemano un papel: en una le tocaba acompañarte y en la otra mostrarse distante y desinteresado. Ese papel estaba decidido por el diseño del estudio antes de que llegaras, y no tuvo nada que ver con vos ni con lo que contaste.\n\nLo hicimos así porque queríamos estudiar si CREER que del otro lado hay una persona o una IA cambia cómo reaccionamos, emocional y fisiológicamente.\n\nPor eso los mensajes distantes no fueron una opinión sobre vos ni sobre lo que te pasó: eran el papel que le tocaba al modelo en esa conversación. Si en algún momento se cortó la conexión, ese mensaje salía de un guion fijo escrito de antemano.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando."
+    }
+  },
+  "manipulation_check": {
+    "believed_real_person": {
+      "prompt": "¿En qué medida creíste que estabas interactuando con una persona real?",
+      "ticks": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+      "labels": ["0\nseguro/a: era una IA", "", "", "", "", "50\nno sabía", "", "", "", "", "100\nseguro/a: era una persona"]
+    },
+    "suspicion_1": "¿Qué te pareció que estaba pasando en este estudio? ¿Qué creés que estábamos estudiando?",
+    "suspicion_2": "¿Hubo algo que te resultara raro o poco creíble durante las conversaciones?",
+    "suspicion_3": "¿Pensaste en algún momento que tu interlocutor no era lo que te habíamos dicho? Si sí, ¿en qué momento y por qué?",
+    "consents_after_debriefing": {
+      "prompt": "Ahora que sabés cómo fue el estudio, ¿nos autorizás a usar tus datos?",
+      "ticks": [0, 1],
+      "labels": ["0\nno, bórrenlos", "1\nsí, úsenlos"]
+    }
+  }
+}

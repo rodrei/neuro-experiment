@@ -1,106 +1,130 @@
-# web/ — demo en navegador
+# web/ — browser implementation
 
-Versión del Estudio 1 que corre en el navegador, para **mostrarle el estudio al
-grupo y para iterar guiones y prompts**. No reemplaza al experimento de
-escritorio ni sirve para correr participantes: no hay EDA, y en modo LLM
-tampoco hay control de contenido entre condiciones.
+The reference implementation of the current design: four debate episodes
+per participant, two introduced as a person and two as an AI, each about a
+question the participant picks, with validation or rejection from an LLM.
+Runs in a browser against a standard-library Python server; deployed on
+fly.io for the group.
 
-Lee el mismo `protocolo/` que `escritorio/`, a través de `comun/protocolo.py`.
-Una corrección de redacción en `protocolo/` llega a las dos sin copiar nada.
+It reads the same `protocol/` as `desktop/`, through `common/protocol.py`.
+It records no EDA. In phase 1 every episode is answered by the LLM, including
+the ones introduced as a person; phase 2 connects those to a real person.
 
-## Correr local
+## Run locally
 
 ```bash
-python3 -m web.servidor.app
+python3 -m web.server.app
 ```
 
-Queda en <http://localhost:8080>. Variables de entorno:
+Serves <http://localhost:8080>. Environment variables:
 
-| Variable | Default | Qué hace |
+| Variable | Default | What it does |
 | --- | --- | --- |
-| `PUERTO` | `8080` | Puerto de escucha |
-| `CARPETA_DATOS` | `datos/` | Dónde se escriben los CSV |
-| `CODIGO_ACCESO` | vacío | Si está, `/api/turno` y `/api/datos` lo exigen |
-| `OPENROUTER_API_KEY` | — | Sin ella, el modo LLM cae al guion |
-| `LIMITE_POR_MINUTO` | `30` | Pedidos por IP por minuto |
+| `PORT` | `8080` | Listening port |
+| `DATA_DIR` | `data/` | Where the CSVs are written |
+| `ACCESS_CODE` | empty | If set, `/api/turn` and `/api/data` require it |
+| `OPENROUTER_API_KEY` | — | The key (or `openrouter_key.txt` at the repo root). Without it every turn falls back |
+| `LLM_TIMEOUT` | `20` | Seconds to wait for the API before falling back |
+| `RATE_LIMIT_PER_MINUTE` | `30` | Requests per IP per minute |
+
+On boot the server prints where it found the key (or that it did not).
 
 Tests: `python3 -m unittest discover -s web -t . -v`
 
-## Qué hay adentro
+## What is inside
 
-| Archivo | Qué hace |
+| File | What it does |
 | --- | --- |
-| `servidor/app.py` | Sirve la página, expone `/api/protocolo`, hace de proxy al LLM y recibe los datos. Sólo stdlib |
-| `index.html` | Formulario de arranque y contenedor de jsPsych |
-| `js/protocolo.js` | Carga `/api/protocolo` |
-| `js/chat-plugin.js` | Plugin propio: un episodio completo de chat en un trial |
-| `js/escalas.js` | SUDS, SAM, autenticidad y PANAS |
-| `js/experimento.js` | El timeline y el envío de datos |
-| `static/vendor/` | jsPsych 8.3.0 y plugins, pineados (no CDN) |
+| `server/app.py` | Serves the page; `GET /api/protocol`, `GET /api/health` (LLM probe, cached 60 s, `?refresh=1`), `POST /api/turn` (stateless proxy to the LLM: `{feedback, name, question, history, fallback_line}` → `{text, origin, fallback_reason}`), `POST /api/data` (writes the four CSVs). Stdlib only |
+| `index.html` | Start form (id, age, sex, sequence, access code, test mode) and the LLM pre-flight line |
+| `js/protocol.js` | Loads `/api/protocol`; `fallbackLine()`, `fill()` |
+| `js/chat-plugin.js` | Custom plugin: one episode in one trial — pinned topic card, opinion first, three LLM turns, free replies, fallback banner in test mode |
+| `js/scales.js` | Text screens, sliders, PANAS grid, measure collection |
+| `js/experiment.js` | The timeline (sequence → four episodes), test mode, submission |
+| `static/styles.css` | Palette of the desktop; centred screens; topic cards; pinned card; banner |
+| `static/vendor/` | jsPsych 8.3.0 and plugins, pinned (no CDN) |
+| `e2e/run_flow.mjs` | Playwright walk of the whole flow with assertions and screenshots |
 
-El modo de agente (guionado / LLM) se elige **en el formulario de arranque**,
-para poder alternarlo en vivo delante del grupo.
+## Seeing what the LLM is doing
 
-## Desplegar en fly.io
+- **Pre-flight** on the start form: green «LLM listo: <model> respondió en
+  N s (key: env|file)» or red with the reason (no key, 401, timeout, TLS…).
+  «Volver a comprobar el LLM» forces a new probe.
+- **Test mode banner** under the chat bar: «Fallback (turno N): <reason>» the
+  moment a turn falls back; amber «N turno(s) cayeron al fallback» once a
+  later turn succeeds. Participants outside test mode see nothing.
+- **Server output**: one `LLM fallback (<feedback>): <reason>` line per
+  failure (`fly logs` in production).
+- **CSV**: `origin` and `fallback_reason` per message in `_chat.csv`,
+  `fallback_turns` per episode in `_behavioral.csv`.
 
-La app es `neuro-estudio1-demo`, en la organización `personal`, región `gru`
-(São Paulo; fly no tiene región en Argentina).
+## Test mode
+
+The **Modo test** checkbox adds a **Saltar** button bottom right and the
+**F9** key (on a Mac usually with `fn`) on every screen, plus the fallback
+banner. Whatever is skipped stays **empty** in the CSVs and a skipped PANAS
+page leaves the subscale without a total; `test_mode` is recorded in
+`_responses.csv`. Inside the chat the skip does not end the episode: it sends
+whatever is typed, filling the mandatory opinion with `test_filler_opinion`
+from the protocol. A skipped topic pick takes the first remaining topic.
+
+## Browser check
+
+```bash
+node web/e2e/run_flow.mjs --url http://localhost:8080 --code <ACCESS_CODE> --shots /tmp/shots
+```
+
+Needs Playwright installed globally (`npm i -g playwright && playwright
+install chromium`; `PLAYWRIGHT_DIR` if it lives elsewhere). It runs the
+full session in test mode at 1280×800, the start screens again at 1440×900,
+asserts the flow (four episodes, 8/7/6/5 topics, an intro before every
+chat, no cover-story or suspicion screens, the pinned card is not a bubble,
+the participant speaks first, no fallback while the LLM is reachable, no JS
+errors) and screenshots every screen type. Run it locally and against the
+deployment after every deploy.
+
+## Deploy on fly.io
+
+App `neuro-estudio1-demo`, organisation `personal`, region `gru` (São
+Paulo; fly has no region in Argentina).
 
 ```bash
 fly deploy --app neuro-estudio1-demo
 ```
 
-`Dockerfile` y `fly.toml` están en la **raíz del repo**, no acá: el contenedor
-necesita `protocolo/` y `comun/` además de `web/`.
+`Dockerfile` and `fly.toml` are at the **repo root**: the container needs
+`protocol/` and `common/` besides `web/`. Secrets: `OPENROUTER_API_KEY` and
+`ACCESS_CODE` (`fly secrets set ACCESS_CODE=<new> --app neuro-estudio1-demo`).
+It is a public URL that spends OpenRouter credit: keep a code and rotate it
+after each demo.
 
-### Cuatro cosas que empiezan a facturar en silencio
+### Four things that start billing silently
 
-La cuenta está en el plan **Hobby legacy**, que conserva la asignación gratuita
-anterior: 3 VMs `shared-cpu-1x` de 256 MB, 3 GB de volumen y 100 GB de tráfico.
-Esta app usa 1 máquina y 1 GB, así que entra con margen. Lo que hay que cuidar:
+The account is on the **legacy Hobby plan**, which keeps the old free
+allowance: 3 `shared-cpu-1x` VMs of 256 MB, 3 GB of volume and 100 GB of
+traffic. This app uses 1 machine and 1 GB.
 
-1. **La memoria.** `fly.toml` fija `memory = "256mb"`. Cualquier cosa más
-   grande sale de la asignación.
-2. **La IPv4.** Tiene que ser **compartida** (`fly ips allocate-v4 --shared`).
-   Una dedicada cuesta USD 2/mes. Verificar con `fly ips list`.
-3. **El volumen.** Se cobra por capacidad provisionada, no por uso: 1 GB
-   alcanza para unas 65.000 sesiones a 16 KB cada una.
-4. **El plan.** Salir del plan legacy es **irreversible**. Rechazar cualquier
-   propuesta del panel de pasar a pago por uso.
+1. **Memory.** `fly.toml` pins `memory = "256mb"`.
+2. **IPv4.** Must be **shared** (`fly ips allocate-v4 --shared`); a dedicated
+   one costs USD 2/month. Check with `fly ips list`.
+3. **Volume.** Billed by provisioned size, not usage: 1 GB is ~65,000
+   sessions at 16 KB each. The fly volume keeps its original name `datos`;
+   it is mounted at `/data`.
+4. **Plan.** Leaving the legacy plan is **irreversible**. Decline any
+   dashboard offer to move to pay-as-you-go.
 
-### Bajar los datos
+### Getting the data down
 
-El volumen está atado a una máquina: **no es almacenamiento durable**. Después
-de cada demo, bajar los CSV:
-
-```bash
-fly ssh console --app neuro-estudio1-demo -C "ls /datos"
-fly sftp get /datos/<archivo>.csv --app neuro-estudio1-demo
-```
-
-### Cambiar el código de acceso
+The volume is tied to one machine: **not durable storage**. After each
+session or demo:
 
 ```bash
-fly secrets set CODIGO_ACCESO=<nuevo> --app neuro-estudio1-demo
+fly ssh console --app neuro-estudio1-demo -C "ls /data"
+fly sftp get /data/<file>.csv --app neuro-estudio1-demo
 ```
 
-Es una URL pública que gasta crédito de OpenRouter: conviene que tenga código y
-rotarlo después de cada demo.
+## What it does not do
 
-## Qué NO hace
-
-Por ser una demo descartable: no hay base de datos, ni cuentas, ni chequeos de
-atención, ni SAM pictórico, ni soporte para teléfonos (un cartel manda a usar
-una computadora), ni equivalente de LSL o puerto serie. Corre siempre con los
-parámetros `demo` de `protocolo/parametros.json`.
-
-## Modo test
-
-El checkbox **Modo test** del formulario de arranque suma un botón **Saltar**
-abajo a la derecha y la tecla **F9** (en Mac suele necesitar `fn`) en cada
-pantalla. Recorre el flujo entero sin contestar nada. Lo salteado queda
-**vacío** en los CSV y una página del PANAS salteada deja la subescala sin
-total, así que una corrida de test no se confunde con una real; además queda
-`modo_test` en `_respuestas.csv`. Dentro del chat no se saltea el episodio
-sino la espera activa: manda lo que haya escrito, y si el mensaje era
-obligatorio lo completa con `texto_relleno_test` del protocolo.
+No database, no accounts, no attention checks, no pictorial SAM, no phone
+support (a notice asks for a computer), no LSL or serial equivalent. It always
+runs with the `demo` timings of `protocol/parameters.json`.

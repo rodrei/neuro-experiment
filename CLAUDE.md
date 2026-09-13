@@ -2,79 +2,54 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Qué es esto
+## What this is
 
-Implementación en **PsychoPy** (Coder, no Builder) del Estudio 1 de un diseño experimental de una diplomatura en neurociencias: "Validación y rechazo: IA vs. agente humano" (Grupo 3, AI companions). Diseño 2×2 mixto: Tipo de agente (humano vs. IA, entre-sujetos, manipulado sólo por la historia de cobertura) × Retroalimentación (validación vs. rechazo, intra-sujeto, contrabalanceada). El protocolo completo está en `Pre-entrega #3 — Diseño experimental.md`.
+Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Current design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four chat episodes per participant, each about a debate question the participant picks, with **no deception** (the participant is told who they are talking to). The design document is `docs/Pre-entrega #3 — Diseño experimental.md` (Spanish). The spec of the current implementation is `docs/superpowers/specs/2026-09-12-phase1-debate-design.md`.
 
-**Todo el proyecto está en español** (código, comentarios, docs, commits): mantenerlo así.
+Two implementations share one content folder: **`web/`** (browser, jsPsych + stdlib `http.server`, the reference for the current design, deployed on fly.io) and **`desktop/`** (PsychoPy Coder, still on the original two-episode cover-story design, to be migrated later).
 
-## Cómo se corre
+**Language rule:** code, comments, docstrings, JSON keys, CSV headers, developer docs and commit messages are in **English**. Everything a participant reads (values in `protocol/*.json`, `fallback.csv`, `scripts.csv`, `panas.csv`, and the UI strings in `web/index.html` / the JS) is **Argentine Spanish (voseo)**. The design doc and `docs/superpowers/*` from before the rename stay Spanish.
 
-No hay entorno virtual propio: se usa el Python embebido en PsychoPy (3.11).
+## How to run
 
-```bash
-PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources \
-PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 \
-/Applications/PsychoPy.app/Contents/MacOS/python escritorio/estudio1.py
-```
+- Web: `python3 -m web.server.app` → http://localhost:8080. Key in `OPENROUTER_API_KEY` or `openrouter_key.txt` (gitignored). Env: `PORT`, `DATA_DIR`, `ACCESS_CODE`, `LLM_TIMEOUT`, `RATE_LIMIT_PER_MINUTE`.
+- Desktop: open `desktop/study1.py` in PsychoPy Coder and Run, or `PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python desktop/study1.py`. Ctrl+Q quits. `DEMO_MODE` / `TEST_MODE` in `desktop/config.py`.
+- Tests (system Python, no network, no PsychoPy): `python3 -m unittest discover -s common -t . -v` and `python3 -m unittest discover -s web -t . -v`. Desktop: `py_compile desktop/*.py` with PsychoPy's Python; the interactive walk is manual.
+- Browser check: `node web/e2e/run_flow.mjs --url <url> [--code X] [--shots DIR]` (global Playwright). Run it locally and after every deploy.
+- Console chat to iterate on the prompts: `python3 -m common.llm_agent`.
+- Deploy: `fly deploy --app neuro-estudio1-demo` from the repo root (see `web/README.md`).
 
-O abrir `escritorio/estudio1.py` en PsychoPy Coder y Run. Salir en cualquier momento: **Ctrl+Q**.
+## Architecture
 
-- `MODO_DEMO = True` en `escritorio/config.py` (default): ventana chica y tiempos cortos, el flujo entero se prueba en ~3 min. Ponerlo en `False` para participantes reales.
-- `MODO_TEST = True` en `escritorio/config.py` (default `False`): botón **Saltar** en cada pantalla y tecla `F9` para lo mismo. Recorre el flujo sin contestar nada. Lo salteado queda vacío en los CSV (una subescala incompleta del PANAS no lleva total) y la corrida queda marcada con `modo_test` en `_respuestas.csv`. Los helpers (`boton_salto`, `dibujar_salto`, `salto_pedido`, `soltar_raton`) viven en `escritorio/escalas.py` y los usan también `chat.py` y `estudio1.py`. `salto_pedido` consulta la tecla siempre con `keyList`, para no vaciar el buffer que necesitan las pantallas con `TextBox2` editable.
-- Tests (Python puro, sin red ni PsychoPy): `python3 -m unittest discover -s comun -t . -v`. Cubren el cargador del protocolo y el agente LLM. Para el resto no hay suite: se compilan los módulos con el Python de PsychoPy (`py_compile`) y el recorrido interactivo (tipear, Enter, sliders con mouse) se prueba a mano.
-- Chat de consola para iterar los prompts del LLM: `python3 -m comun.agente_llm`.
+Dependency direction: `web/`, `desktop/` → `common/` → `protocol/`, never back.
 
-## Arquitectura
+**`protocol/`** — content as data: `texts.json` (screens), `scales.json`, `parameters.json`, `markers.json`, `prompts.json` (`debate` for the web, `situation` for the desktop), `topics.json`, `interlocutors.json`, `sequences.json` (Williams Latin square), `fallback.csv` (web fallback lines), `scripts.csv` (desktop scripted messages), `panas.csv`. Entries only the desktop reads are named `desktop_*` or listed in `protocol/README.md`. **Edit content here, never in code.** Run the common tests afterwards.
 
-Tres capas, con la dependencia siempre en la misma dirección
-(`escritorio/ → comun/ → protocolo/`, nunca al revés):
+**`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer shared by both platforms; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
 
-**`protocolo/`** — el contenido del experimento como datos, no como código:
-prosa de las pantallas (`textos.json`), escalas (`escalas.json`), tiempos y
-fórmula de latencia (`parametros.json`), códigos de marcador
-(`marcadores.json`), prompts del agente LLM (`prompts.json`), y los estímulos
-`guiones.csv` (saludo/saludo2 + 3 turnos de validación + 3 de rechazo) y
-`panas.csv` (20 ítems con subescala).
+**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`; stateless proxy, the browser sends the full history each turn), `js/experiment.js` (timeline + submission), `js/chat-plugin.js` (one episode per trial, pinned topic card, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
 
-**`comun/`** — Python compartido, sólo stdlib, sin PsychoPy.
+**`desktop/`** — `study1.py`, `chat.py` (TextBox2 bubbles built once and cached), `scales.py`, `markers.py` (`EventLog`: CSV always, optional LSL/serial/parallel), `config.py`. The modules add the repo root to `sys.path` to import `common`.
 
-- `protocolo.py` — único lector de `protocolo/`. Lo usan las dos plataformas, así que una corrección de redacción llega a las dos sin copiar nada.
-- `agente_llm.py` — agente por LLM vía OpenRouter (opt-in con `config.AGENTE = "llm"`; default `"guionado"`). Un `AgenteLLM` nuevo por episodio; el saludo sigue guionado; si la API falla el turno cae al guion (`origen` queda en `_chat.csv`). El transporte HTTP se inyecta, por eso es testeable sin red (`test_agente_llm.py`). Sólo stdlib (`urllib`): no agregar dependencias.
+Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`, `_chat`), web prefix `S1_<id>_seq<n>_<stamp>`, desktop prefix `S1_<id>_<condition>_<stamp>`.
 
-**`escritorio/`** — el experimento en PsychoPy.
+## Design invariants (do not break)
 
-- `estudio1.py` — orquestador: diálogo inicial → consentimiento → línea base → historia de cobertura → 2 episodios de chat (cada uno seguido de su bloque de medidas) → chequeo de manipulación → debriefing → guardado de CSVs.
-- `chat.py` — clase `Chat`: interfaz de conversación dibujada a mano con `TextBox2` (burbujas, "escribiendo…", caja de entrada). Las burbujas se construyen una sola vez por mensaje y se cachean (construirlas por frame tira los fps al piso).
-- `escalas.py` — pantallas de texto y autoinforme: SUDS, SAM, autenticidad, PANAS (grilla), texto libre. `bloque_medidas()` arma el bloque completo en orden fijo SUDS → SAM → autenticidad → PANAS.
-- `marcadores.py` — `RegistroEventos`: siempre loguea a CSV (`t_experimento_s` + `t_unix`); opcionalmente reenvía cada marcador por LSL / serie / paralelo según `config.BACKEND_MARCADORES`. Si el backend falla, avisa y sigue sólo con CSV (nunca voltea el experimento).
-- `config.py` — sólo lo específico de PsychoPy: modo demo/test, ventana, apariencia, backend de marcadores y puertos.
+Web (current design):
+1. The LLM writes every turn from the `debate` prompt with the chosen question and the role; on failure the turn comes from `fallback.csv` with `origin = fallback` and a reason.
+2. Agent latency is deterministic: `latency_base + latency_per_char × chars`, capped — applied after generation.
+3. The opinion is written inside the chat under the pinned question; no earlier screen asks for it.
+4. Baseline has no authenticity items.
+5. Measures order: SUDS → SAM → authenticity → PANAS.
+6. Every relevant event leaves a marker with a timestamp (`markers.json`).
+7. Nothing asks the participant whether the interlocutor was a person or an AI; interlocutors are announced honestly before each episode. In phase 1 every episode is still answered by the LLM; the person-labelled episodes get a real person in phase 2.
 
-**Dónde se edita qué:** el contenido del experimento (prosa, escalas, guiones,
-marcadores, prompts) se edita en `protocolo/`, nunca en el código. Después de
-tocar `protocolo/`, correr `python3 -m unittest discover -s comun -t . -v`.
+Desktop (original design, until migrated): scripted agent identical across Human/AI, situation told inside the chat, cover story is the only manipulation, scripts balanced in length (`test_turns_are_balanced_in_length`).
 
-Como PsychoPy Coder corre el archivo directo y no hay paquete instalado, los
-módulos de `escritorio/` agregan la raíz del repo a `sys.path` para poder
-importar `comun`.
+## PsychoPy trap: sliders
 
-Salida en `datos/`: cuatro CSVs por participante (`_eventos`, `_respuestas`, `_conductual`, `_chat`) con prefijo `S1_<id>_<condición>_<fecha>`.
+The PANAS grid uses `style="rating"`. Never `"radio"`: every radio slider is `categorical=True` and `.rating` returns labels — `labels=None` raises `TypeError` on the first click; `labels=[""]*5` stores `''` silently.
 
-## Invariantes del diseño experimental (no romper)
+## Known pending items
 
-Son decisiones metodológicas, no de código; cambiarlas altera el experimento. Valen para el modo default `"guionado"`; el modo `"llm"` rompe deliberadamente los invariantes 1 y 2 y por eso es opt-in, sólo para pilotos/demos hasta que el grupo y el comité de ética lo evalúen (ver README, "Modo LLM").
-
-1. **El agente está totalmente guionado** y el contenido es idéntico entre condiciones Humano/IA; lo único que varía es la fuente atribuida (historia de cobertura + etiqueta en la barra del chat).
-2. **La latencia del agente es determinista**: `1.2 s + 0.045 s × caracteres` (tope 12 s). Los guiones están balanceados en extensión entre validación y rechazo para que la espera total quede pareja. Si se editan los guiones, re-balancear largos.
-3. **La situación personal se cuenta dentro del chat** (el agente la pide; mínimo 120 caracteres). No agregar pantallas previas que la pidan: rompe la historia de cobertura.
-4. **La línea base no incluye los ítems de autenticidad** (`incluir_autenticidad=False`): todavía no existe interlocutor.
-5. **Orden del bloque de medidas: SUDS → SAM → autenticidad → PANAS** (las sensibles al tiempo primero; el PANAS largo al final).
-6. Cada evento relevante deja marcador con timestamp (códigos en `config.MARCADORES`) para segmentar el EDA offline.
-
-## Trampa de PsychoPy: sliders
-
-La grilla del PANAS usa `style="rating"`. **Nunca cambiarlo a `"radio"`**: todo slider de estilo radio queda `categorical=True` y `.rating` devuelve labels en vez del número — con `labels=None` da `TypeError` al primer clic; con `labels=[""]*5` guarda `''` silenciosamente.
-
-## Pendientes conocidos
-
-Ver la lista completa en `README.md` ("Pendientes antes de correr participantes"): probar el recorrido interactivo a mano, cotejar la traducción del PANAS con Moriondo et al. (2012), pretest de los guiones, SAM pictórico opcional (PNGs en `protocolo/sam/`, se autodetectan), elegir backend de marcadores según el equipo de EDA.
+See README "Before running participants": desktop migration to the debate design, review of topics and roles with the group, PANAS translation check, pictorial SAM, marker backend, access-code rotation after demos.

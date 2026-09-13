@@ -1,9 +1,9 @@
-# Despliegue de la demo web del Estudio 1.
+# Deployment of the Study 1 web demo.
 #
-# La cuenta está en el plan Hobby legacy, que conserva la asignación gratuita
-# anterior (3 VMs shared-cpu-1x de 256 MB, 3 GB de volumen, 100 GB de tráfico).
-# Los valores de acá están elegidos para entrar en esa asignación: NO subir la
-# memoria ni el tamaño del volumen sin saber que eso empieza a facturar.
+# The account is on the legacy Hobby plan, which keeps the old free
+# allowance (3 shared-cpu-1x VMs of 256 MB, 3 GB of volume, 100 GB of
+# traffic). The values here are chosen to fit that allowance: do NOT raise
+# the memory or the volume size without knowing that starts billing.
 
 app = "neuro-estudio1-demo"
 primary_region = "gru"
@@ -11,8 +11,8 @@ primary_region = "gru"
 [build]
 
 [env]
-  PUERTO = "8080"
-  CARPETA_DATOS = "/datos"
+  PORT = "8080"
+  DATA_DIR = "/data"
 
 [http_service]
   internal_port = 8080
@@ -21,11 +21,13 @@ primary_region = "gru"
   auto_start_machines = true
   min_machines_running = 0
 
-# Los CSV de las sesiones. El volumen está atado a esta máquina: bajarlos con
-# `fly sftp get` después de cada demo, no tratarlo como almacenamiento durable.
+# The sessions' CSVs. The volume is tied to this machine: download them with
+# `fly sftp get` after every demo, do not treat it as durable storage. The
+# volume keeps its original name on fly ("datos"); only the mount path is
+# English.
 [[mounts]]
   source = "datos"
-  destination = "/datos"
+  destination = "/data"
 
 [[vm]]
   size = "shared-cpu-1x"

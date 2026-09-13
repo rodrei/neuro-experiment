@@ -1,23 +1,23 @@
-# Imagen de la demo web del Estudio 1.
+# Image of the Study 1 web demo.
 #
-# El contexto de build es la RAÍZ del repo, no web/: el contenedor necesita
-# protocolo/ (el contenido del experimento) y comun/ (el cargador y el agente)
-# además del servidor.
+# The build context is the repo ROOT, not web/: the container needs protocol/
+# (the experiment content) and common/ (the loader and the agent) besides the
+# server.
 #
-# No hay pip install: el servidor es sólo biblioteca estándar.
+# No pip install: the server is standard library only.
 
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY protocolo/ ./protocolo/
-COPY comun/ ./comun/
+COPY protocol/ ./protocol/
+COPY common/ ./common/
 COPY web/ ./web/
 
-ENV PUERTO=8080 \
-    CARPETA_DATOS=/datos \
+ENV PORT=8080 \
+    DATA_DIR=/data \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["python", "-m", "web.servidor.app"]
+CMD ["python", "-m", "web.server.app"]
