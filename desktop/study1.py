@@ -201,8 +201,8 @@ def main():
     # ---------------------------------------------------------------
     # Consent and instructions
     # ---------------------------------------------------------------
-    scales.text_screen(win, txt["consent"]["body"],
-                       title=txt["consent"]["title"])
+    scales.text_screen(win, txt["desktop_consent"]["body"],
+                       title=txt["desktop_consent"]["title"])
 
     # ---------------------------------------------------------------
     # Physiological baseline
@@ -245,8 +245,8 @@ def main():
         responses.update({"%s_%s" % (feedback, k): v for k, v in measures.items()})
 
         if i < len(sequence):
-            scales.text_screen(win, txt["pause"]["body"],
-                               title=txt["pause"]["title"])
+            scales.text_screen(win, txt["desktop_pause"]["body"],
+                               title=txt["desktop_pause"]["title"])
 
     # ---------------------------------------------------------------
     # Manipulation check + funnel debriefing
@@ -267,7 +267,7 @@ def main():
     # The debriefing depends on the mode the agent ran in: with "llm" the
     # messages were not written in advance, and saying so would be lying on
     # the very screen where the lying stops.
-    deb = protocol.debriefing(config.AGENT)
+    deb = protocol.desktop_debriefing(config.AGENT)
     scales.text_screen(win, deb["body"], title=deb["title"])
 
     consents = check["consents_after_debriefing"]

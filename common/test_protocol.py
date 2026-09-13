@@ -21,7 +21,6 @@ class TestTexts(unittest.TestCase):
             self.assertIn(key, t)
             self.assertTrue(t[key]["body"].strip(),
                             "screen %s has no body" % key)
-        # The debriefing has one version per agent mode: tested separately.
         self.assertIn("debriefing", t)
 
     def test_cover_story_has_both_conditions(self):
@@ -42,33 +41,33 @@ class TestTexts(unittest.TestCase):
              "suspicion_3", "consents_after_debriefing"})
 
 
-class TestDebriefing(unittest.TestCase):
-    """The debriefing is the screen where the participant stops being
-    deceived: it has to tell the truth of the mode that actually ran."""
+class TestDesktopDebriefing(unittest.TestCase):
+    """On the desktop the debriefing is the screen where the participant
+    stops being deceived: it has to tell the truth of the mode that ran."""
 
     def test_one_version_per_agent_mode(self):
-        bodies = protocol.texts()["debriefing"]["body"]
+        bodies = protocol.texts()["desktop_debriefing"]["body"]
         self.assertEqual(set(bodies), {"scripted", "llm"})
 
     def test_returns_title_and_body(self):
         for agent in ("scripted", "llm"):
-            d = protocol.debriefing(agent)
+            d = protocol.desktop_debriefing(agent)
             self.assertEqual(set(d), {"title", "body"})
             self.assertTrue(d["body"].strip())
 
     def test_the_two_versions_differ(self):
-        self.assertNotEqual(protocol.debriefing("scripted")["body"],
-                            protocol.debriefing("llm")["body"])
+        self.assertNotEqual(protocol.desktop_debriefing("scripted")["body"],
+                            protocol.desktop_debriefing("llm")["body"])
 
     def test_only_the_scripted_one_claims_everything_was_written(self):
         """The sentence that was false in LLM mode and motivated the split."""
         self.assertIn("escritos de antemano",
-                      protocol.debriefing("scripted")["body"])
+                      protocol.desktop_debriefing("scripted")["body"])
         self.assertNotIn("Todos los mensajes que recibiste estaban escritos",
-                         protocol.debriefing("llm")["body"])
+                         protocol.desktop_debriefing("llm")["body"])
 
     def test_the_llm_one_says_a_model_generated_them(self):
-        body = protocol.debriefing("llm")["body"]
+        body = protocol.desktop_debriefing("llm")["body"]
         self.assertIn("modelo de lenguaje", body)
 
     def test_both_deny_there_was_another_person(self):
@@ -76,19 +75,19 @@ class TestDebriefing(unittest.TestCase):
         ran."""
         for agent in ("scripted", "llm"):
             self.assertIn("no había",
-                          protocol.debriefing(agent)["body"].lower())
+                          protocol.desktop_debriefing(agent)["body"].lower())
 
     def test_both_state_the_rejection_was_not_personal(self):
         """What has to be said before the participant leaves."""
         for agent in ("scripted", "llm"):
             self.assertIn("con lo que contaste",
-                          protocol.debriefing(agent)["body"],
+                          protocol.desktop_debriefing(agent)["body"],
                           "the %s debriefing does not detach the person from "
                           "the rejection" % agent)
 
     def test_unknown_agent_fails(self):
         with self.assertRaises(ValueError):
-            protocol.debriefing("human")
+            protocol.desktop_debriefing("human")
 
 
 class TestScales(unittest.TestCase):
@@ -112,11 +111,10 @@ class TestScales(unittest.TestCase):
         panas = protocol.scales()["panas"]
         self.assertEqual(len(panas["ticks"]), len(panas["anchors"]))
 
-    def test_authenticity_has_four_items_and_one_reversed(self):
+    def test_authenticity_has_three_items_none_reversed(self):
         items = protocol.scales()["authenticity"]["items"]
-        self.assertEqual(len(items), 4)
-        reversed_keys = [i["key"] for i in items if i["reverse"]]
-        self.assertEqual(reversed_keys, ["auth_4_rev"])
+        self.assertEqual([i["key"] for i in items], ["auth_1", "auth_2", "auth_3"])
+        self.assertFalse(any(i["reverse"] for i in items))
 
 
 class TestParameters(unittest.TestCase):
@@ -145,8 +143,13 @@ class TestParameters(unittest.TestCase):
 
 class TestMarkers(unittest.TestCase):
 
-    def test_the_eighteen_codes_are_there(self):
-        self.assertEqual(len(protocol.markers()), 18)
+    def test_the_twenty_two_codes_are_there(self):
+        self.assertEqual(len(protocol.markers()), 22)
+
+    def test_the_debate_markers_are_there(self):
+        for label in ("interlocutor_intro", "topic_shown", "topic_chosen",
+                      "opinion_sent"):
+            self.assertIn(label, protocol.markers())
 
     def test_codes_do_not_repeat(self):
         """Two events with the same code are indistinguishable when
@@ -210,16 +213,101 @@ class TestPanas(unittest.TestCase):
 
 class TestEverything(unittest.TestCase):
 
-    def test_carries_the_seven_sections(self):
+    def test_carries_the_eleven_sections(self):
         self.assertEqual(
             set(protocol.everything()),
             {"texts", "scales", "markers", "prompts", "parameters",
-             "scripts", "panas"})
+             "scripts", "panas", "sequences", "interlocutors", "topics",
+             "fallback"})
 
     def test_is_json_serializable(self):
         """The browser consumes it via GET /api/protocol."""
         import json
         self.assertTrue(json.dumps(protocol.everything()))
+
+
+class TestSequences(unittest.TestCase):
+
+    def test_four_sequences_of_four(self):
+        seqs = protocol.sequences()
+        self.assertEqual(sorted(seqs), ["1", "2", "3", "4"])
+        for s in seqs.values():
+            self.assertEqual(sorted(s), sorted(protocol.CONDITIONS))
+
+    def test_is_a_latin_square(self):
+        seqs = protocol.sequences()
+        for position in range(4):
+            column = [seqs[k][position] for k in sorted(seqs)]
+            self.assertEqual(sorted(column), sorted(protocol.CONDITIONS))
+
+    def test_split_condition(self):
+        self.assertEqual(protocol.split_condition("ai_rejection"),
+                         ("ai", "rejection"))
+        with self.assertRaises(ValueError):
+            protocol.split_condition("robot_love")
+
+
+class TestInterlocutors(unittest.TestCase):
+
+    def test_two_per_type_with_distinct_names(self):
+        people = protocol.interlocutors()
+        self.assertEqual(len(people), 4)
+        self.assertEqual(len({p["name"] for p in people}), 4)
+        self.assertEqual(sum(p["type"] == "human" for p in people), 2)
+        self.assertEqual(sum(p["type"] == "ai" for p in people), 2)
+
+
+class TestTopics(unittest.TestCase):
+
+    def test_eight_topics_with_unique_ids_and_questions(self):
+        topics = protocol.topics()
+        self.assertEqual(len(topics), 8)
+        self.assertEqual(len({t["id"] for t in topics}), 8)
+        for t in topics:
+            self.assertTrue(t["question"].endswith("?"))
+            self.assertTrue(t["category"])
+
+
+class TestFallbackLines(unittest.TestCase):
+
+    def test_three_per_feedback(self):
+        lines = protocol.fallback_lines()
+        self.assertEqual(set(lines), {"validation", "rejection"})
+        for feedback in lines:
+            self.assertEqual(sorted(lines[feedback]), [1, 2, 3])
+
+
+class TestDebatePrompts(unittest.TestCase):
+
+    def test_debate_rules_have_the_placeholders(self):
+        debate = protocol.prompts()["debate"]
+        for ph in ("{name}", "{question}", "{role}", "{max_chars}"):
+            self.assertIn(ph, debate["rules"])
+        self.assertEqual(set(debate["role"]), {"validation", "rejection"})
+
+    def test_situation_prompts_still_there_for_the_desktop(self):
+        situation = protocol.prompts()["situation"]
+        self.assertIn("{examples}", situation["rules"])
+        self.assertEqual(set(situation["role"]), {"validation", "rejection"})
+
+
+class TestWebTexts(unittest.TestCase):
+
+    def test_new_screens_present(self):
+        t = protocol.texts()
+        for key in ("instructions", "interlocutor_intro", "topic_pick",
+                    "topic_card", "interlocutor_label", "debriefing"):
+            self.assertIn(key, t)
+        self.assertIn("{name}", t["interlocutor_intro"]["human"])
+        self.assertIn("{name}", t["interlocutor_intro"]["ai"])
+        self.assertIn("{name}", t["interlocutor_label"]["ai"])
+        self.assertIn("{n}", t["topic_card"]["hint"])
+        self.assertIsInstance(t["debriefing"]["body"], str)
+
+    def test_debate_parameters_present(self):
+        p = protocol.parameters("demo")
+        self.assertEqual(p["min_opinion_chars"], 120)
+        self.assertGreaterEqual(len(p["test_filler_opinion"]), 120)
 
 
 if __name__ == "__main__":

@@ -68,13 +68,14 @@ class TestReads(ServerBase):
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
 
-    def test_protocol_carries_the_seven_sections(self):
+    def test_protocol_carries_the_eleven_sections(self):
         status, body = request(self.port, "/api/protocol")
         self.assertEqual(status, 200)
         self.assertEqual(
             set(body),
             {"texts", "scales", "markers", "prompts", "parameters",
-             "scripts", "panas"})
+             "scripts", "fallback", "panas", "sequences", "interlocutors",
+             "topics"})
 
     def test_script_turns_arrive_with_string_keys(self):
         """After JSON the integer keys become strings: the browser side has
@@ -82,9 +83,9 @@ class TestReads(ServerBase):
         _, body = request(self.port, "/api/protocol")
         self.assertIn("1", body["scripts"]["validation"])
 
-    def test_debriefing_comes_with_both_versions(self):
+    def test_desktop_debriefing_comes_with_both_versions(self):
         _, body = request(self.port, "/api/protocol")
-        self.assertEqual(set(body["texts"]["debriefing"]["body"]),
+        self.assertEqual(set(body["texts"]["desktop_debriefing"]["body"]),
                          {"scripted", "llm"})
 
     def test_missing_path_is_404(self):

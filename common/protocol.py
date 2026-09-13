@@ -20,6 +20,8 @@ PROTOCOL_DIR = os.path.join(ROOT, "protocol")
 
 MODES = ("real", "demo")
 AGENTS = ("scripted", "llm")
+CONDITIONS = ("human_validation", "human_rejection",
+              "ai_validation", "ai_rejection")
 
 _cache = {}
 
@@ -33,13 +35,23 @@ def _read_json(name):
     return _cache[name]
 
 
+def _read_lines_csv(filename):
+    """{feedback: {turn: text}} from a feedback,turn,text CSV."""
+    out = {}
+    with open(os.path.join(PROTOCOL_DIR, filename), encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            out.setdefault(row["feedback"], {})[int(row["turn"])] = row["text"]
+    return out
+
+
 def texts():
-    """Screen prose, cover story and final check."""
+    """Screen prose for both platforms (the desktop-only entries are prefixed
+    desktop_ or listed in protocol/README.md)."""
     return _read_json("texts")
 
 
-def debriefing(agent):
-    """The debriefing that matches the agent mode that was used.
+def desktop_debriefing(agent):
+    """The desktop debriefing that matches the agent mode that was used.
 
     There are two versions because what happened was different. With the
     scripted agent every message was written in advance and identical across
@@ -49,7 +61,7 @@ def debriefing(agent):
     """
     if agent not in AGENTS:
         raise ValueError("agent must be one of %s, not %r" % (AGENTS, agent))
-    block = texts()["debriefing"]
+    block = texts()["desktop_debriefing"]
     return {"title": block["title"], "body": block["body"][agent]}
 
 
@@ -64,7 +76,9 @@ def markers():
 
 
 def prompts():
-    """Role per condition, rules template and model parameters."""
+    """Model parameters plus the two prompt families: `debate` (web) and
+    `situation` (desktop), each with a rules template and a role per
+    feedback type."""
     return _read_json("prompts")
 
 
@@ -82,13 +96,39 @@ def parameters(mode="real"):
     return merged
 
 
+def sequences():
+    """Williams Latin square: {"1": [condition x4], ..., "4": [...]}."""
+    return _read_json("sequences")
+
+
+def interlocutors():
+    """Four {name, type} entries, two per agent type, in assignment order."""
+    return _read_json("interlocutors")
+
+
+def topics():
+    """Eight {id, category, question} debate topics."""
+    return _read_json("topics")
+
+
+def split_condition(condition):
+    """'ai_rejection' -> ('ai', 'rejection')."""
+    if condition not in CONDITIONS:
+        raise ValueError("condition must be one of %s, not %r"
+                         % (CONDITIONS, condition))
+    agent_type, feedback = condition.split("_")
+    return agent_type, feedback
+
+
 def scripts():
-    """{feedback: {turn: text}} from protocol/scripts.csv."""
-    out = {}
-    with open(os.path.join(PROTOCOL_DIR, "scripts.csv"), encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            out.setdefault(row["feedback"], {})[int(row["turn"])] = row["text"]
-    return out
+    """{feedback: {turn: text}} from protocol/scripts.csv (desktop)."""
+    return _read_lines_csv("scripts.csv")
+
+
+def fallback_lines():
+    """{feedback: {turn: text}} from protocol/fallback.csv: the generic lines
+    the web shows when an LLM turn fails."""
+    return _read_lines_csv("fallback.csv")
 
 
 def panas():
@@ -100,8 +140,9 @@ def panas():
 def everything():
     """The whole protocol in one dict, to serve it over HTTP to the browser.
 
-    Note: after json.dumps, the integer keys of scripts() come out as strings
-    ("1", "2", "3"). The browser side reads them that way.
+    Note: after json.dumps, the integer keys of scripts() and
+    fallback_lines() come out as strings ("1", "2", "3"). The browser side
+    reads them that way.
     """
     return {
         "texts": texts(),
@@ -110,5 +151,9 @@ def everything():
         "prompts": prompts(),
         "parameters": {mode: parameters(mode) for mode in MODES},
         "scripts": scripts(),
+        "fallback": fallback_lines(),
         "panas": panas(),
+        "sequences": sequences(),
+        "interlocutors": interlocutors(),
+        "topics": topics(),
     }

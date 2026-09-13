@@ -147,9 +147,9 @@ class LLMAgent(object):
         self.history = []     # [{"role": ..., "content": ...}]
 
         cfg = protocol.prompts()
-        self.system = cfg["rules"].format(
+        self.system = cfg["situation"]["rules"].format(
             name=protocol.texts()["agent_name"],
-            role=cfg["role"][feedback],
+            role=cfg["situation"]["role"][feedback],
             max_chars=cfg["max_chars"],
             examples="\n".join("- " + e for e in _script_examples(feedback))
                      or "(no examples)")
