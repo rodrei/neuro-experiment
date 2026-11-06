@@ -328,6 +328,9 @@ async function fullFlow(browser) {
     check(chat.label === TXT.interlocutor_label[said[i]],
           `chat ${i + 1}: the label matches what was announced`);
   }
+  check(announcements.every((a, i) =>
+    a.text.includes(TXT.demo.human_note) === (DEMO && said[i] === "human")),
+        "only the demo's human announcements say the model answers");
 
   const domains = PROTOCOL.domains.map((d) => d.label);
   const openings = chats.map((c) => (c.lines || [""])[0]);
@@ -376,9 +379,11 @@ async function fullFlow(browser) {
                                  && !s.text.includes("Alex")),
         "no scale before the final block asks about the interlocutor's identity");
 
-  check(screens.find((s) => s.kind === "debriefing").text
-          .includes("mismo sistema de inteligencia artificial"),
-        "the debriefing reveals it was one artificial system");
+  const debriefing = screens.find((s) => s.kind === "debriefing").text;
+  check(debriefing.includes("persona del equipo de investigación"),
+        "the debriefing reveals the person behind the human label");
+  check(!debriefing.includes("modelo de lenguaje"),
+        "the debriefing does not say a model replaced the person");
 
   if (healthOk) {
     check(fallbackBanners.size === 0, "no fallback banner while the LLM is reachable"

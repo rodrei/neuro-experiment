@@ -218,8 +218,11 @@ function runExperiment() {
     timeline.push(sliderScale(sc.suds, moment + "_pre_suds"));
 
     timeline.push(mark("agent_announcement", episode + "_" + condition));
+    const announcement = txt.agent_announcement[agentType]
+      + (window.PROTOCOL.demo_mode && agentType === "human"
+        ? "\n\n" + txt.demo.human_note : "");
     timeline.push(Object.assign(
-      textScreen(txt.agent_announcement.title, txt.agent_announcement[agentType]),
+      textScreen(txt.agent_announcement.title, announcement),
       { data: { screen: "announcement" } }));
 
     timeline.push({

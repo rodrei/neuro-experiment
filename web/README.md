@@ -2,8 +2,10 @@
 
 The study, in a browser against a standard-library Python server: four chat
 episodes about personal situations, two labelled as another participant and two
-as an AI, all answered by the same LLM with validation or rejection. Deployed on
-fly.io in demo mode for the evaluators.
+as an AI, with validation or rejection. In the study a person from the research
+team answers the first two. The chat for that person is not built yet, so the LLM
+answers all four, and the demo's start form and human announcements say so.
+Deployed on fly.io in demo mode for the evaluators.
 
 It reads `protocol/` through `common/protocol.py`. See the root `README.md` for
 the flow, the two modes and the output files.

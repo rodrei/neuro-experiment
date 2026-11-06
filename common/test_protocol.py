@@ -27,6 +27,10 @@ class TestTexts(unittest.TestCase):
         self.assertIn("ponen en palabras experiencias emocionales", body)
         self.assertIn("OpenRouter", body)
 
+    def test_the_consent_limits_the_external_provider_to_the_ai_conversations(self):
+        body = protocol.texts()["consent"]["body"]
+        self.assertIn("en las conversaciones con una inteligencia artificial", body)
+
     def test_announcements_are_the_exact_wording_of_the_spec(self):
         announcement = protocol.texts()["agent_announcement"]
         self.assertEqual(
@@ -49,9 +53,25 @@ class TestTexts(unittest.TestCase):
         self.assertIn("{domain}", prompt)
         self.assertIn("mayor detalle posible", prompt)
 
-    def test_the_debriefing_reveals_a_single_artificial_system(self):
+    def test_the_debriefing_reveals_who_was_behind_each_label(self):
         body = protocol.texts()["debriefing"]["body"]
-        self.assertIn("mismo sistema de inteligencia artificial", body)
+        self.assertIn("persona del equipo de investigación", body)
+        self.assertIn("sistema de inteligencia artificial", body)
+        self.assertNotIn("mismo sistema", body)
+        self.assertNotIn("no hubo otra persona", body.lower())
+
+    def test_the_debriefing_says_a_person_read_what_was_written(self):
+        self.assertIn("leyó lo que le escribiste", protocol.texts()["debriefing"]["body"])
+
+    def test_the_debriefing_does_not_say_a_model_replaced_the_person(self):
+        debriefing = protocol.texts()["debriefing"]
+        self.assertEqual(set(debriefing), {"title", "body"})
+        self.assertNotIn("modelo de lenguaje", debriefing["body"])
+
+    def test_the_demo_says_the_model_answers_the_human_condition_too(self):
+        demo = protocol.texts()["demo"]
+        self.assertIn("modelo de lenguaje", demo["human_note"])
+        self.assertIn("una persona", demo["start_note"])
 
     def test_the_final_block_asks_about_suspicion_and_each_interlocutor(self):
         final = protocol.texts()["final_check"]

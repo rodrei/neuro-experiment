@@ -31,5 +31,7 @@ English.
   that mention a domain use `{domain}`, and the label fits after «relacionada
   con», «que tiene que ver con» and «sobre». `instrument_pending` uses `{title}`
   and `{n}`.
-- **Never put the agent type in the prompt.** The content has to be identical
-  across agent conditions.
+- **Never put the agent type in the prompt.** In this app the model answers both
+  agent conditions, and its content has to be the same in each.
+- The debriefing describes the study as designed, with a person in the human
+  condition. Only the `demo` notes say that the model answers every conversation.

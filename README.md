@@ -3,14 +3,24 @@
 Neurodiplo, Group 3 · AI companions
 
 A 2 × 2 within-subject experiment that runs in a browser (`web/`): four chat
-episodes about personal situations, one per domain, each labelled as another
-participant or as an AI. Every interlocutor is the same language model; the
-only thing that varies between agent conditions is the label. A debriefing
-reveals this at the end.
+episodes about personal situations, one per domain, with a person or an AI as
+the interlocutor, who validates or rejects. A debriefing reveals how it was set
+up.
+
+**The interlocutors.** In the study's human condition, a person from the research
+team writes every turn, following the protocol, and is presented as another
+participant. In the AI condition, a language model does. **The chat for that person
+is not built yet, so the model answers all four episodes, in both modes.** The demo
+says so on the start form and on each human announcement. The debriefing describes
+the study as designed in both modes, so **`DEMO_MODE=0` must not be used with real
+participants until that chat exists**: it would tell them a person answered when
+the model did.
 
 The specification is Elena's document, in the group's Drive folder
 `entrega final`: «Rodrigo modificas al experimento», together with the paper's
-Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento».
+Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». The
+real person in the human condition is a later group decision and overrides what
+those documents say about a single LLM.
 
 Code, comments, JSON keys, CSV headers and developer docs are in English.
 Everything a participant reads is Argentine Spanish (voseo) and lives in
@@ -25,7 +35,7 @@ Everything a participant reads is Argentine Spanish (voseo) and lives in
 | **For** | Evaluators walking through the study | A full session |
 | **Baseline** | 15 s | 5 minutes |
 | **Data** | Nothing is stored: `/api/data` answers 403 | Four CSVs per session in `data/` |
-| **Screen** | A permanent «no se registra nada» badge, and a note on what goes to the model provider | Experimenter fields on the start form |
+| **Screen** | A permanent «no se registra nada» badge, and notes saying the model answers every conversation and what goes to its provider | Experimenter fields on the start form |
 | **Saltar / F9** | On every screen except the chat, to pass the questionnaires | Only in test mode, where it also cuts the waits in the chat |
 | **Rows of the Latin squares** | Random | From the number in the participant id |
 | **API spend** | `MAX_TURNS_PER_DAY` across all sessions; past it, turns come from the fallback lines | No cap |
@@ -100,17 +110,17 @@ Three layers; the dependency always points the same way
 6. **Final block**: for each episode, identified by its domain, a 0–100 scale
    of who the participant believes they talked to; then the open suspicion
    question; then what stood out about each interlocutor.
-7. Debriefing, which reveals that every interlocutor was the same artificial
-   system. The participant can then withdraw their data, in which case nothing
-   is stored.
+7. Debriefing, which reveals that the "other participant" was a person from the
+   research team following a protocol. The participant can then withdraw their
+   data, in which case nothing is stored.
 
 ### Invariants of the flow
 
-1. **One agent.** The LLM writes every turn from one fixed prompt (Annex A2).
-   If the API does not answer within 20 s or the reply is empty, the turn comes
-   from `protocol/fallback.csv`, and the chat CSV records `origin = fallback`
-   and the reason.
-2. **The model never receives the label.** Nothing about how the agent is
+1. **Until the human chat exists, the LLM answers.** It writes every turn from one fixed prompt
+   (Annex A2). If the API does not answer within 20 s or the reply is empty, the
+   turn comes from `protocol/fallback.csv`, and the chat CSV records
+   `origin = fallback` and the reason.
+2. **The model never receives the label.** Nothing about how the interlocutor is
    presented reaches the prompt: `/api/turn` only takes the feedback type and
    the conversation.
 3. **The agent latency is deterministic**: `1.2 s + 0.045 s × characters`
@@ -165,6 +175,8 @@ browser and sent once at the end, so closing the tab mid-session loses it.
 
 ## Still pending
 
+- [ ] The live chat for the person in the human condition. Until it exists,
+      `DEMO_MODE=0` must not be used with real participants.
 - [ ] The wording of the validated Spanish UCLA-3 and ECR. Until
       `protocol/instruments.json` has their items, each shows a screen naming
       the instrument.

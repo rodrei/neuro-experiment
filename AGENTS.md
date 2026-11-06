@@ -4,9 +4,9 @@ This file provides guidance to coding agents (Codex, Claude Code and others) whe
 
 ## What this is
 
-Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four episodes of three rounds each, about personal situations from four domains. Every interlocutor is the same LLM; **only the label varies**, and a debriefing reveals it. The assignment is delivered as if the study had run: there are no real participants, and the results come from simulated data.
+Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four episodes of three rounds each, about personal situations from four domains. In the study's human condition a person from the research team writes every turn, following the protocol, presented as another participant; in the AI condition an LLM does. **The chat for that person is not built yet, so the LLM answers all four episodes in both modes**, and the demo says so. A debriefing reveals the setup as designed. The assignment is delivered as if the study had run: there are no real participants, and the results come from simulated data.
 
-The specification lives in the group's Drive folder `entrega final`: «Rodrigo modificas al experimento», the paper's Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». Follow those documents on design questions rather than proposing alternatives.
+The specification lives in the group's Drive folder `entrega final`: «Rodrigo modificas al experimento», the paper's Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». Follow those documents on design questions rather than proposing alternatives, except that the real person in the human condition is a later group decision and overrides what they say about a single LLM.
 
 It runs in a browser: `web/` (jsPsych + stdlib `http.server`, deployed on fly.io in demo mode).
 
@@ -36,7 +36,7 @@ Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`
 
 ## Design invariants (do not break)
 
-1. The LLM writes every turn from one fixed prompt; if the API does not answer in 20 s or the reply is empty, the turn comes from `fallback.csv` with `origin = fallback` and a reason.
+1. Until the human chat exists, the LLM writes every turn from one fixed prompt; if the API does not answer in 20 s or the reply is empty, the turn comes from `fallback.csv` with `origin = fallback` and a reason.
 2. **The model never receives the label.** `/api/turn` takes only the feedback type and the conversation.
 3. Agent latency is deterministic: `latency_base + latency_per_char × chars`, capped — applied after generation.
 4. Nothing asks about the interlocutor's identity before the final block; the per-episode naturalness item does not mention it. In the final block, credibility comes before the open questions.
@@ -44,7 +44,8 @@ Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`
 6. Every message is stored verbatim with origin, shown latency, length and turn number.
 7. Agent messages are stamped when they reach the screen, not when requested or when the typing indicator starts. Every relevant event leaves a marker (`markers.json`).
 8. When the demo says nothing is recorded, `/api/data` must refuse to store.
+9. The demo says the model answers every conversation, on the start form and on each human announcement. The debriefing describes the study as designed and does not mention it, so `DEMO_MODE=0` must not be used with real participants until the human chat exists.
 
 ## Known pending items
 
-See README "Still pending": UCLA-3 and ECR wording, group review of the drafted Spanish, PANAS translation check, access-code rotation after demos.
+See README "Still pending": the live chat for the person in the human condition, UCLA-3 and ECR wording, group review of the drafted Spanish, PANAS translation check, access-code rotation after demos.
