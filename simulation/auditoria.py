@@ -23,8 +23,9 @@ pa = pd.read_csv(pa_path) if pa_path.exists() else None
 
 EDA = ["scl_media", "ns_scr_n", "scr_amp_media"]
 HRV = ["rr_medio", "rmssd", "sdrr", "pnn50", "hf", "lf_hf"]
-SELF = ["panas_n", "suds"]
-ALL = EDA + HRV + SELF
+SELF = ["suds_pre", "suds_post", "sam_valencia", "sam_activacion"]
+ALL = EDA + HRV
+SELF_SIGN = {"suds_pre": 1, "suds_post": 1, "sam_valencia": -1, "sam_activacion": 1}
 # Direction of each signal under stress, to read the coupling with self-report.
 STRESS_SIGN = {"scl_media": 1, "ns_scr_n": 1, "scr_amp_media": 1, "rr_medio": -1,
                "rmssd": -1, "sdrr": -1, "pnn50": -1, "hf": -1, "lf_hf": 1}
@@ -79,19 +80,28 @@ print("  values at an implausible floor:")
 for v, limit in (("hf", 1), ("lf_hf", 0.05), ("rmssd", 5), ("sdrr", 10), ("pnn50", 0.01),
                  ("scr_amp_media", 0.01)):
     print("    %-14s below %-5s %5.1f%%" % (v, limit, 100 * (c[v].dropna() < limit).mean()))
-print("    suds at 0 %.1f%%, at 10 %.1f%% | panas_n at 10 %.1f%%"
-      % (100 * (c.suds.dropna() == 0).mean(), 100 * (c.suds.dropna() == 10).mean(),
-         100 * (c.panas_n.dropna() == 10).mean()))
+print("  self-report, one value per episode:")
+for v in SELF:
+    x = ep[v].dropna()
+    print("  %-14s %9.2f %9.2f %9.2f %7.2f %7.2f %7.1f"
+          % (v, x.mean(), x.std(), x.median(), stats.skew(x), x.min(), x.max()))
+print("    suds_post at 0 %.1f%%, at 10 %.1f%% | sam_valencia at 1 %.1f%%, at 9 %.1f%%"
+      % (100 * (ep.suds_post.dropna() == 0).mean(), 100 * (ep.suds_post.dropna() == 10).mean(),
+         100 * (ep.sam_valencia.dropna() == 1).mean(), 100 * (ep.sam_valencia.dropna() == 9).mean()))
 
 title("effects by condition (mean over rounds, without contamination)")
 cells = c.groupby(["feedback", "agente"])[ALL].mean().T
 print(cells.round(2).to_string())
 print("\n  AI as a share of the human response, above the validation-AI level is not")
 print("  defined per variable; rejection effect relative to the variable's base:")
-for v, base in (("rr_medio", 926), ("rmssd", 42), ("hf", 657), ("panas_n", 15), ("suds", 2.5)):
+for v, base in (("rr_medio", 926), ("rmssd", 42), ("hf", 657)):
     h = cells.loc[v, ("rechazo", "humano")] - base
     a = cells.loc[v, ("rechazo", "ia")] - base
-    print("    %-9s human %8.2f  AI %8.2f  AI/human %.2f" % (v, h, a, a / h))
+    print("    %-13s human %8.2f  AI %8.2f  AI/human %.2f" % (v, h, a, a / h))
+self_cells = ep.groupby(["feedback", "agente"])[["suds_pre", "suds_post", "suds_cambio",
+                                                 "sam_valencia", "sam_activacion"]].mean().T
+print("\n  self-report by condition (per episode):")
+print(self_cells.round(2).to_string())
 
 title("SCL: drift across episodes and habituation across rounds")
 print("  by episode", c.groupby("episodio").scl_media.mean().round(2).tolist())
@@ -105,17 +115,18 @@ if pa is not None:
     print(sel.groupby("genero")[["ns_scr_n", "scr_amp_media"]].mean().round(3).to_string())
 
 title("self-report vs physiology (target r around 0.15)")
-person = c.groupby("id")[ALL].mean()
+person = c.groupby("id")[ALL].mean().join(ep.groupby("id")[SELF].mean())
 print("  participant means, signed so that positive means more stress in both:")
 for s in SELF:
-    print("   ", s, {v: round(float(person[s].corr(STRESS_SIGN[v] * person[v])), 2) for v in EDA + HRV})
+    print("   ", s, {v: round(float((SELF_SIGN[s] * person[s]).corr(STRESS_SIGN[v] * person[v])), 2) for v in EDA + HRV})
 print("  mean across pairs: %.3f" % np.mean(
-    [person[s].corr(STRESS_SIGN[v] * person[v]) for s in SELF for v in EDA + HRV]))
-print("  self-report with each other: %.2f" % person.panas_n.corr(person.suds))
+    [(SELF_SIGN[s] * person[s]).corr(STRESS_SIGN[v] * person[v]) for s in SELF for v in EDA + HRV]))
+print("  SUDS before with SUDS after: %.2f" % person.suds_pre.corr(person.suds_post))
 
 title("contamination (A5.1)")
 print("  missing per variable (paper: 3 to 5%):",
-      {v: round(100 * ro[v].isna().mean(), 1) for v in ALL})
+      {v: round(100 * ro[v].isna().mean(), 1) for v in ALL},
+      {v: round(100 * ep[v].isna().mean(), 1) for v in SELF})
 print("  EDA artefacts %.1f%% (parameter 5%%)" % (100 * ro.artefacto_eda.mean()))
 print("  rounds with more than 6%% ectopic beats: %.1f%%" % (100 * (ro.prop_ectopicos > 0.06).mean()))
 dirty_scl = ro[ro.artefacto_eda].scl_media.dropna()
@@ -133,18 +144,18 @@ for frame in (ro2, c2):
     frame["ln_hf"] = np.log(frame.hf.clip(lower=1))
 for label, frame in (("dirty", ro2), ("clean", c2)):
     print("  " + label)
-    for v in ("rmssd", "rr_medio", "ln_hf", "panas_n", "suds"):
-        m = frame.dropna(subset=[v]).groupby(["id", "agente", "feedback"])[v].mean().unstack([1, 2])
+    for v in ("rmssd", "rr_medio", "ln_hf", "suds_cambio", "sam_valencia"):
+        source = ep if v in ("suds_cambio", "sam_valencia") else frame
+        m = source.dropna(subset=[v]).groupby(["id", "agente", "feedback"])[v].mean().unstack([1, 2])
         h1a = (m[("humano", "rechazo")] - m[("ia", "rechazo")]).dropna()
         h1d = (h1a - (m[("humano", "validacion")] - m[("ia", "validacion")])).dropna()
-        print("    %-9s H1a d=%6.2f p=%.4f | H1d d=%6.2f p=%.4f"
+        print("    %-13s H1a d=%6.2f p=%.4f | H1d d=%6.2f p=%.4f"
               % (v, h1a.mean() / h1a.std(), stats.ttest_1samp(h1a, 0).pvalue,
                  h1d.mean() / h1d.std(), stats.ttest_1samp(h1d, 0).pvalue))
 
 title("episode measures")
-print(ep.groupby(["feedback", "agente"])[[k for k in ep.columns if k.startswith(("autent", "mc_", "natural", "credib"))]].mean().round(2).T.to_string())
-print("  pre_malestar mean %.2f; 9 or more in %.1f%% of episodes; r with mean SUDS of the episode %.3f"
+print(ep.groupby(["feedback", "agente"])[[k for k in ep.columns if k.startswith(("autent", "mc_", "natural", "credib", "cod_"))]].mean().round(2).T.to_string())
+print("  pre_malestar mean %.2f; 9 or more in %.1f%% of episodes; r with SUDS before %.3f, after %.3f"
       % (ep.pre_malestar.mean(), 100 * (ep.pre_malestar >= 9).mean(),
-         ep.merge(c.groupby(["id", "episodio"]).suds.mean().reset_index(), on=["id", "episodio"])
-         [["pre_malestar", "suds"]].corr().iloc[0, 1]))
+         ep.pre_malestar.corr(ep.suds_pre), ep.pre_malestar.corr(ep.suds_post)))
 print("  columns:", list(ep.columns))

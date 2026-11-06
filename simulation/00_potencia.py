@@ -4,11 +4,13 @@ import numpy as np
 from scipy import stats
 spec = importlib.util.spec_from_file_location("sim", "01_simular.py")
 sim = importlib.util.module_from_spec(spec); spec.loader.exec_module(sim)
-DV = ("rmssd", "rr_medio", "ln_hf", "panas_n", "suds")
+DV = ("rmssd", "rr_medio", "ln_hf", "suds_cambio", "sam_valencia")
+POR_EPISODIO = ("suds_cambio", "sam_valencia")
 A = 0.70
 
-def celdas(r, v):
-    d = r.dropna(subset=[v])
+def celdas(datos, v):
+    r, e = datos
+    d = (e if v in POR_EPISODIO else r).dropna(subset=[v])
     return d.groupby(["id","agente","feedback"])[v].mean().unstack([1,2])
 def p_h1a(r, v):
     c = celdas(r, v)
@@ -34,7 +36,9 @@ def correr(n, s):
     sim.AGENTE_EN_RECHAZO=A; sim.AGENTE_EN_VALIDACION=A*0.43; sim.R_INTRA=0.50
     sim.rng=np.random.default_rng(s)
     p,ls=sim.generar_participantes(sim.rng); e=sim.generar_episodios(p,ls,sim.rng)
-    r=sim.generar_rondas(p,e,sim.rng); r["ln_hf"]=np.log(r["hf"].clip(lower=1)); return r
+    r=sim.generar_rondas(p,e,sim.rng); r["ln_hf"]=np.log(r["hf"].clip(lower=1))
+    e=sim.agregar_autoinforme(e,r,np.random.default_rng([s,2]),faltantes=0)
+    return r,e
 
 REPS=100
 print(f"efecto a={A}: la IA en el {(1-A/2)/(1+A/2)*100:.0f}% de la respuesta humana", flush=True)
@@ -43,9 +47,9 @@ print(f"{'N':<7}{'H1d interaccion':<18}{'H1a agente|rechazo':<22}{'efecto princi
 for n in (40,50,60,80,120,150,200,300):
     h1d=[];h1a=[];fb=[];h1b=[]
     for s in range(REPS):
-        r=correr(n,50000+s)
-        h1d.append(np.mean([p_h1d(r,v)<.05 for v in DV]))
-        h1a.append(np.mean([p_h1a(r,v)<.05 for v in DV]))
-        fb.append(np.mean([p_fb(r,v)<.05 for v in DV]))
+        r,e=correr(n,50000+s)
+        h1d.append(np.mean([p_h1d((r,e),v)<.05 for v in DV]))
+        h1a.append(np.mean([p_h1a((r,e),v)<.05 for v in DV]))
+        fb.append(np.mean([p_fb((r,e),v)<.05 for v in DV]))
         h1b.append(p_h1b(r)<.05)
     print(f"{n:<7}{np.mean(h1d):<18.2f}{np.mean(h1a):<22.2f}{np.mean(fb):<18.2f}{np.mean(h1b):<18.2f}", flush=True)

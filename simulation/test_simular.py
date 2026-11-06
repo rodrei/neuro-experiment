@@ -28,7 +28,11 @@ def generate(n=150, seed=20261103):
     rounds = sim.generar_rondas(participants, episodes, rng)
     episodes_full = sim.agregar_medidas_post(episodes, participants, rng)
     dirty_rounds, dirty_episodes = sim.ensuciar(rounds, episodes_full, participants, rng)
-    return participants, episodes_full, rounds, dirty_rounds, dirty_episodes
+    measured = sim.agregar_autoinforme(episodes_full, rounds,
+                                       np.random.default_rng([seed, 2]), faltantes=0)
+    dirty_measured = sim.agregar_autoinforme(dirty_episodes, dirty_rounds,
+                                             np.random.default_rng([seed, 2]))
+    return participants, measured, rounds, dirty_rounds, dirty_measured
 
 
 def icc(rounds, variable):
@@ -97,10 +101,10 @@ class TestCoupling(Base):
     def test_self_report_and_physiology_correlate_weakly(self):
         """A5.3: around r = 0.15, signed so more stress is positive in both."""
         person = self.rounds.groupby("id")[list(sim.VARIABLES)].mean()
-        physiology = {v: (-1 if c["delta"] < 0 else 1) for v, c in sim.VARIABLES.items()
-                      if v not in ("panas_n", "suds")}
-        values = [person[s].corr(sign * person[v])
-                  for s in ("panas_n", "suds") for v, sign in physiology.items()]
+        stress = {v: (-1 if c["delta"] < 0 else 1) for v, c in sim.VARIABLES.items()}
+        physiology = {v: s for v, s in stress.items() if v not in sim.AUTOINFORME}
+        values = [(stress[s] * person[s]).corr(sign * person[v])
+                  for s in sim.AUTOINFORME for v, sign in physiology.items()]
         self.assertGreater(np.mean(values), 0.08)
         self.assertLess(np.mean(values), 0.25)
 
@@ -111,6 +115,60 @@ class TestCoupling(Base):
         r = joined.pre_malestar.corr(joined.suds)
         self.assertGreater(r, 0.15)
         self.assertLess(r, 0.5)
+
+
+class TestSelfReport(Base):
+    """Section 3 of the paper: SUDS before and after each episode, SAM at its end."""
+
+    def test_panas_is_gone_and_sam_is_there(self):
+        self.assertNotIn("panas_n", sim.VARIABLES)
+        for column in ("suds_pre", "suds_post", "suds_cambio", "sam_valencia",
+                       "sam_activacion"):
+            self.assertIn(column, self.episodes.columns)
+
+    def test_there_is_one_value_per_episode(self):
+        self.assertEqual(len(self.episodes), 600)
+        self.assertEqual(self.episodes.suds_post.isna().sum(), 0)
+
+    def test_the_scales_stay_in_their_range(self):
+        e = self.episodes
+        for column in ("suds_pre", "suds_post"):
+            self.assertGreaterEqual(e[column].min(), 0)
+            self.assertLessEqual(e[column].max(), 10)
+        for column in ("sam_valencia", "sam_activacion"):
+            self.assertGreaterEqual(e[column].min(), 1)
+            self.assertLessEqual(e[column].max(), 9)
+
+    def test_suds_before_the_episode_does_not_know_the_condition(self):
+        means = self.episodes.groupby(["agente", "feedback"]).suds_pre.mean()
+        self.assertLess(means.max() - means.min(), 0.5)
+
+    def test_the_change_is_largest_for_human_rejection(self):
+        means = self.episodes.groupby(["feedback", "agente"]).suds_cambio.mean()
+        self.assertGreater(means[("rechazo", "humano")], means[("rechazo", "ia")])
+        self.assertGreater(means[("rechazo", "ia")], means[("validacion", "ia")])
+
+    def test_rejection_is_less_pleasant_and_more_activating(self):
+        means = self.episodes.groupby("feedback")[["sam_valencia", "sam_activacion"]].mean()
+        self.assertLess(means.sam_valencia["rechazo"], means.sam_valencia["validacion"])
+        self.assertGreater(means.sam_activacion["rechazo"], means.sam_activacion["validacion"])
+
+    def test_the_same_person_answers_before_and_after(self):
+        person = self.episodes.groupby("id")[["suds_pre", "suds_post"]].mean()
+        self.assertGreater(person.suds_pre.corr(person.suds_post), 0.5)
+
+    def test_the_situation_rating_predicts_the_suds_before_the_episode(self):
+        r = self.episodes.pre_malestar.corr(self.episodes.suds_pre)
+        self.assertGreater(r, 0.15)
+
+    def test_a_higher_situation_rating_means_a_less_pleasant_valence(self):
+        self.assertLess(self.episodes.pre_malestar.corr(self.episodes.sam_valencia), 0)
+
+    def test_missing_values_stay_in_the_range_of_the_annex(self):
+        for column in ("suds_pre", "suds_post", "sam_valencia", "sam_activacion"):
+            share = self.dirty_episodes[column].isna().mean()
+            self.assertGreater(share, 0.015, column)
+            self.assertLess(share, 0.07, column)
 
 
 class TestH1b(unittest.TestCase):
@@ -155,9 +213,29 @@ class TestEpisodeMeasures(Base):
 
     def test_has_the_measures_of_section_2_5(self):
         for column in ("naturalidad", "credibilidad", "autenticidad", "mc_entendio",
-                       "mc_tenia_sentido", "mc_interes", "mc_queria_cortar"):
+                       "mc_tenia_sentido", "mc_problema_era_yo", "mc_atribuyo_culpa",
+                       "mc_interes", "mc_queria_cortar"):
             self.assertIn(column, self.episodes.columns)
         self.assertNotIn("etiqueta_reportada", self.episodes.columns)
+
+    def test_the_attribution_items_separate_rejection_from_validation(self):
+        means = self.episodes.groupby("feedback")[
+            ["mc_problema_era_yo", "mc_atribuyo_culpa"]].mean()
+        self.assertTrue((means.loc["rechazo"] > means.loc["validacion"] + 1.5).all())
+
+    def test_the_coding_has_four_dimensions_on_the_vibcs_scale(self):
+        for column in ("cod_validacion", "cod_invalidacion", "cod_atribucion", "cod_retirada"):
+            self.assertGreaterEqual(self.episodes[column].min(), 1)
+            self.assertLessEqual(self.episodes[column].max(), 7)
+
+    def test_the_dose_differs_by_feedback_and_not_by_agent(self):
+        """Section 2.5: equivalence between agents, margin of half a point."""
+        e = self.episodes
+        for column in ("cod_validacion", "cod_invalidacion", "cod_atribucion", "cod_retirada"):
+            by_agent = e.groupby("agente")[column].mean()
+            self.assertLess(abs(by_agent["humano"] - by_agent["ia"]), 0.25, column)
+            by_feedback = e.groupby("feedback")[column].mean()
+            self.assertGreater(abs(by_feedback["rechazo"] - by_feedback["validacion"]), 1.5, column)
 
     def test_credibility_is_0_to_100_and_follows_the_label(self):
         credibility = self.episodes.credibilidad

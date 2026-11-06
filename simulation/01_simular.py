@@ -12,6 +12,10 @@ Produce datos deliberadamente "sucios" (artefactos, latidos ectopicos, faltantes
 fallos de chequeo de etiqueta) para que 02_limpiar.py tenga sobre que operar y las
 exclusiones reportadas en la seccion 2.5 del paper tengan sustento.
 
+El autoinforme se mide por episodio (seccion 3 del paper): SUDS antes y despues,
+SAM al final. Dentro de un episodio se genera por ronda solo como estado subyacente,
+del que sale el valor final; la hoja de rondas no lo incluye porque nadie lo mide.
+
 Salida: datos/datos_crudos.xlsx  (hojas: participantes, episodios, rondas, parametros)
         datos/datos_crudos_*.csv
 
@@ -80,9 +84,13 @@ VARIABLES = {
     "hf":             dict(base=657.0, de=777.0, delta=-360.0, dist="asimetrica"),  # basal: Nunan 2010
     "lf_hf":          dict(base=2.80,  de=2.60,  delta=0.61,   dist="asimetrica"),  # basal: Nunan 2010
     # --- autoinforme (Shenk y Fruzzetti, 2011)
-    "panas_n":        dict(base=15.0,  de=4.50,  delta=3.47,   dist="normal"),   # ES 0.77 x 4.50
+    "sam_valencia":   dict(base=6.00,  de=1.50,  delta=-1.16,  dist="normal"),   # ES 0.77 x 1.50; base y DE: supuesto
     "suds":           dict(base=2.50,  de=1.50,  delta=1.16,   dist="normal"),   # ES 0.77 x 1.50
 }
+AUTOINFORME = ("sam_valencia", "suds")     # estado subyacente por ronda, ver arriba
+RANGO = dict(sam_valencia=(1, 9), suds=(0, 10))
+# La activacion del SAM se mide solo al final del episodio. Mismo ES; base y DE: supuesto.
+SAM_ACTIVACION = dict(base=4.00, de=1.60, delta=1.23)
 
 # El SCL no tiene efecto de nivel (Iffland) pero si de pendiente (Kelly):
 # habituacion por ronda, atenuada bajo rechazo, y mas con un agente humano (H1b).
@@ -109,7 +117,7 @@ NATURALIDAD = dict(validacion=5.0, rechazo=4.0)   # 1-7; sin diferencia entre ag
 # piloto con el prompt del Anexo A2: el rechazo escribe algo menos. En la condicion
 # humana responde una persona del equipo con el mismo protocolo: supuesto, misma
 # media que el modelo y mas variabilidad.
-LARGO_AGENTE = dict(validacion=187, rechazo=165)
+LARGO_AGENTE = dict(validacion=196, rechazo=137)
 LARGO_AGENTE_DE = 25
 LARGO_HUMANO_DE = 40
 # Espera de la condicion humana: leer y tipear cada respuesta. Supuestos, sin fuente
@@ -119,6 +127,21 @@ TIPEO_CARACTERES_S = 4
 VARIACION_ESPERA_HUMANO = 0.15     # DE del logaritmo, por episodio
 PROB_TURNO_RESPALDO = 0.01         # solo IA: una persona no tiene lineas de respaldo
 UMBRAL_ALERTA_MALESTAR = 9
+
+# Items de la atribucion disposicional (Pendientes). Supuesto: entre la validacion y
+# la retirada, porque el protocolo pide dos de cinco componentes por mensaje y este
+# no aparece en todos.
+ATRIBUCION = dict(validacion=1.9, rechazo=4.8)
+# Codificacion de las transcripciones en la escala 1-7 del VIBCS (seccion 2.5), media
+# de las tres pasadas del codificador automatico. Supuesto: la dosis no difiere entre
+# agentes, y una persona varia mas que el modelo.
+CODIFICACION = dict(
+    cod_validacion=dict(validacion=5.6, rechazo=1.7),
+    cod_invalidacion=dict(validacion=1.6, rechazo=5.4),
+    cod_atribucion=dict(validacion=1.3, rechazo=3.8),
+    cod_retirada=dict(validacion=1.6, rechazo=5.2),
+)
+CODIFICACION_DE = dict(humano=0.9, ia=0.7)
 
 DOMINIOS = ["trabajo_estudio", "amistad", "familia_pareja", "uno_mismo"]
 CONDICIONES = [("humano", "validacion"), ("humano", "rechazo"),
@@ -267,8 +290,9 @@ def generar_rondas(participantes, episodios, rng):
                 if cfg["dist"] == "normal":
                     # el pre-rating explica parte del residuo sin cambiar su DE
                     media = cfg["base"] + de_b * zi + ef
-                    if v in ("panas_n", "suds"):
-                        val = media + de_w * (rho_pre * z_pre
+                    if v in AUTOINFORME:
+                        signo = -1 if cfg["delta"] < 0 else 1
+                        val = media + de_w * (signo * rho_pre * z_pre
                                               + np.sqrt(1 - rho_pre ** 2) * rng.normal())
                     else:
                         val = rng.normal(media, de_w)
@@ -296,21 +320,65 @@ def generar_rondas(participantes, episodios, rng):
                                     media * cv_residual(cfg["de"], cfg["base"]), 1, rng)[0]
                 fila[v] = float(val)
 
-            fila["panas_n"] = float(np.clip(fila["panas_n"], 10, 50))
-            fila["suds"] = float(np.clip(fila["suds"], 0, 10))
+            for v in AUTOINFORME:
+                fila[v] = float(np.clip(fila[v], *RANGO[v]))
             fila["pnn50"] = float(np.clip(fila["pnn50"], 0, 100))
             fila["ns_scr_n"] = float(round(fila["ns_scr_n"]))
             filas.append(fila)
-    return pd.DataFrame(filas)
+    rondas = pd.DataFrame(filas)
+    # agregar_autoinforme necesita a la misma persona para lo que se mide fuera de las rondas
+    rondas.attrs["z"] = z
+    rondas.attrs["comun"] = dict(zip(participantes.id, comun))
+    return rondas
+
+
+# ---------------------------------------------------------------- autoinforme
+def agregar_autoinforme(episodios, rondas, rng, faltantes=PROP_FALTANTES):
+    """El autoinforme tal como se mide: SUDS antes y despues del episodio, y SAM al
+    final. Lo que se mide al final es el estado subyacente de la ultima ronda, donde
+    el efecto ya se acumulo por completo. Usa su propio flujo de azar."""
+    z, comun = rondas.attrs["z"], rondas.attrs["comun"]
+    carga = np.sqrt(R_AUTOINFORME_FISIO)
+    finales = (rondas[rondas.ronda == N_RONDAS]
+               .set_index(["id", "episodio"])[list(AUTOINFORME)])
+    propio = {i: rng.normal() for i in comun}
+    filas = []
+    for _, ep in episodios.iterrows():
+        rho, z_pre = R_PRE_AUTOINFORME, (ep.pre_malestar - 5.2) / 1.9
+        cfg = VARIABLES["suds"]
+        de_b, de_w = reparto_varianza(cfg["de"])
+        pre = (cfg["base"] + de_b * z["suds"][ep.id]
+               + de_w * (rho * z_pre + np.sqrt(1 - rho ** 2) * rng.normal()))
+        de_b, de_w = reparto_varianza(SAM_ACTIVACION["de"])
+        z_activacion = carga * comun[ep.id] + np.sqrt(1 - carga ** 2) * propio[ep.id]
+        activacion = (SAM_ACTIVACION["base"] + de_b * z_activacion
+                      + efecto_condicion(SAM_ACTIVACION["delta"], ep.agente, ep.feedback)
+                      + de_w * rng.normal())
+        final = finales.loc[(ep.id, ep.episodio)]
+        filas.append(dict(
+            id=ep.id, episodio=ep.episodio,
+            suds_pre=float(np.clip(pre, *RANGO["suds"])),
+            suds_post=final.suds,
+            sam_valencia=final.sam_valencia,
+            sam_activacion=float(np.clip(activacion, *RANGO["sam_valencia"])),
+        ))
+    medidas = pd.DataFrame(filas)
+    for v in ("suds_pre", "sam_activacion"):
+        medidas.loc[rng.random(len(medidas)) < faltantes, v] = np.nan
+    medidas["suds_cambio"] = medidas.suds_post - medidas.suds_pre
+    return episodios.merge(medidas, on=["id", "episodio"])
 
 
 # ---------------------------------------------------------------- post-episodio
 def medidas_post_episodio(episodios, participantes, rng):
-    """Autenticidad percibida, los cuatro items de chequeo de manipulacion, la
-    naturalidad, la credibilidad del bloque final y las medidas conductuales."""
+    """Autenticidad percibida, los seis items de chequeo de manipulacion, la
+    naturalidad, la credibilidad del bloque final, la codificacion de la transcripcion
+    y las medidas conductuales."""
     sospecha = dict(zip(participantes.id, participantes.sospecha))
     # Flujo propio: la variacion de la espera humana no corre los sorteos de ensuciar().
     rng_espera = np.random.default_rng([SEMILLA, 1])
+    # Tambien propio para la atribucion y la codificacion, por el mismo motivo.
+    rng_codigo = np.random.default_rng([SEMILLA, 3])
     out = []
     for _, ep in episodios.iterrows():
         humano = ep.agente == "humano"
@@ -318,12 +386,15 @@ def medidas_post_episodio(episodios, participantes, rng):
         # autenticidad: efecto de agente (H1c), mayor en validacion
         base = 4.6 if valida else 2.9
         aut = base + (0.8 if humano else -0.2) * (1.0 if valida else 0.45)
-        # chequeo por componente: invalidacion (2 items) y retirada (2 items)
+        # chequeo por componente: invalidacion, atribucion y retirada (2 items cada uno)
         ent = 5.6 if valida else 2.2        # "entendio lo que me pasaba"
         sent = 5.4 if valida else 2.0       # "considero que mi reaccion tenia sentido"
         interes = 5.5 if valida else 2.3    # "tenia interes en seguir"
         cortar = 2.0 if valida else 5.3     # "queria terminar la conversacion"
         rr = lambda m: float(np.clip(rng.normal(m, 0.95), 1, 7))
+        rr_atribucion = lambda: float(np.clip(rng_codigo.normal(ATRIBUCION[ep.feedback], 0.95), 1, 7))
+        codigos = {c: float(np.clip(rng_codigo.normal(m[ep.feedback], CODIFICACION_DE[ep.agente]), 1, 7))
+                   for c, m in CODIFICACION.items()}
         # credibilidad: 0 = seguro que es una IA, 100 = seguro que es una persona
         if not humano:
             cred = CREDIBILIDAD_IA
@@ -342,7 +413,9 @@ def medidas_post_episodio(episodios, participantes, rng):
             id=ep.id, episodio=ep.episodio,
             autenticidad=rr(aut),
             mc_entendio=rr(ent), mc_tenia_sentido=rr(sent),
+            mc_problema_era_yo=rr_atribucion(), mc_atribuyo_culpa=rr_atribucion(),
             mc_interes=rr(interes), mc_queria_cortar=rr(cortar),
+            **codigos,
             naturalidad=rr(NATURALIDAD[ep.feedback]),
             credibilidad=float(np.clip(rng.normal(*cred), 0, 100)),
             largo_medio_agente=largo,
@@ -396,7 +469,7 @@ def ensuciar(rondas, episodios, participantes, rng):
 
 
 # ---------------------------------------------------------------- verificacion
-def contrastes_realizados(rondas):
+def contrastes_realizados(rondas, episodios):
     """Los tres contrastes del plan de analisis sobre el conjunto generado, en la
     metrica que corresponde a un diseno intra-sujeto. Sirve de verificacion: la
     potencia esperada de cada uno esta en 00_potencia.py y en el Anexo A6."""
@@ -404,8 +477,8 @@ def contrastes_realizados(rondas):
     r = rondas.copy()
     r["ln_hf"] = np.log(r["hf"].clip(lower=1))
     out = {}
-    for v in ("rmssd", "rr_medio", "ln_hf", "panas_n", "suds"):
-        d = r.dropna(subset=[v])
+    for v in ("rmssd", "rr_medio", "ln_hf", "suds_cambio", "sam_valencia"):
+        d = (episodios if v in ("suds_cambio", "sam_valencia") else r).dropna(subset=[v])
         c = d.groupby(["id", "agente", "feedback"])[v].mean().unstack([1, 2])
         h1a = (c[("humano", "rechazo")] - c[("ia", "rechazo")]).dropna()
         h1d = ((c[("humano", "rechazo")] - c[("ia", "rechazo")])
@@ -425,6 +498,8 @@ def main():
     rondas = generar_rondas(participantes, episodios, rng)
     episodios = agregar_medidas_post(episodios, participantes, rng)
     rondas, episodios = ensuciar(rondas, episodios, participantes, rng)
+    episodios = agregar_autoinforme(episodios, rondas, np.random.default_rng([SEMILLA, 2]))
+    rondas_medidas = rondas.drop(columns=list(AUTOINFORME))
 
     params = pd.DataFrame(
         [dict(parametro=k, valor=str(v)) for k, v in {
@@ -459,6 +534,10 @@ def main():
             "variacion_espera_humano": VARIACION_ESPERA_HUMANO,
             "prob_turno_respaldo": PROB_TURNO_RESPALDO,
             "umbral_alerta_malestar": UMBRAL_ALERTA_MALESTAR,
+            "sam_activacion": SAM_ACTIVACION,
+            "atribucion": ATRIBUCION,
+            "codificacion": CODIFICACION,
+            "codificacion_de": CODIFICACION_DE,
         }.items()]
         + [dict(parametro=f"{v}.{k}", valor=str(x))
            for v, cfg in VARIABLES.items() for k, x in cfg.items()]
@@ -468,10 +547,10 @@ def main():
     with pd.ExcelWriter(xlsx, engine="openpyxl") as w:
         participantes.to_excel(w, sheet_name="participantes", index=False)
         episodios.to_excel(w, sheet_name="episodios", index=False)
-        rondas.to_excel(w, sheet_name="rondas", index=False)
+        rondas_medidas.to_excel(w, sheet_name="rondas", index=False)
         params.to_excel(w, sheet_name="parametros", index=False)
     for nom, df in [("participantes", participantes), ("episodios", episodios),
-                    ("rondas", rondas)]:
+                    ("rondas", rondas_medidas)]:
         df.to_csv(SALIDA / f"datos_crudos_{nom}.csv", index=False)
 
     print(f"semilla {SEMILLA}")
@@ -479,10 +558,10 @@ def main():
           f"| rondas {len(rondas)}")
     print(f"escrito: {xlsx}")
     print("\ncontrastes realizados en este conjunto (d de Cohen pareado y p)")
-    print(f"  {'variable':<11}{'H1a agente|rechazo':<24}{'H1d interaccion':<24}{'principal'}")
-    for v, r in contrastes_realizados(rondas).items():
+    print(f"  {'variable':<13}{'H1a agente|rechazo':<24}{'H1d interaccion':<24}{'principal'}")
+    for v, r in contrastes_realizados(rondas, episodios).items():
         celdas = "".join(f"d={r[k][0]:<7} p={r[k][1]:<9.4f}" for k in ("H1a", "H1d", "principal"))
-        print(f"  {v:<11}{celdas}")
+        print(f"  {v:<13}{celdas}")
 
 
 if __name__ == "__main__":

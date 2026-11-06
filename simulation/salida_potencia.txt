@@ -2,11 +2,11 @@ efecto a=0.7: la IA en el 48% de la respuesta humana
 potencia empirica, 100 simulaciones por celda, alfa=.05, datos sin contaminar
 
 N      H1d interaccion   H1a agente|rechazo    efecto principal  H1b pendiente SCL 
-40     0.41              0.75                  0.80              0.08              
-50     0.42              0.82                  0.88              0.08              
-60     0.53              0.86                  0.94              0.10              
-80     0.59              0.95                  0.97              0.11              
-120    0.76              0.98                  1.00              0.15              
-150    0.83              0.99                  1.00              0.19              
-200    0.88              1.00                  1.00              0.24              
-300    0.97              1.00                  1.00              0.27              
+40     0.39              0.71                  0.77              0.08              
+50     0.42              0.76                  0.83              0.08              
+60     0.50              0.80                  0.88              0.10              
+80     0.57              0.86                  0.92              0.11              
+120    0.68              0.93                  0.98              0.15              
+150    0.74              0.97                  0.99              0.19              
+200    0.80              0.99                  1.00              0.24              
+300    0.91              1.00                  1.00              0.27              
