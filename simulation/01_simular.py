@@ -106,10 +106,18 @@ CREDIBILIDAD_IA = (12, 10)
 NATURALIDAD = dict(validacion=5.0, rechazo=4.0)   # 1-7; sin diferencia entre agentes
 
 # Medidas conductuales de la retirada (seccion 2.5). Medias de conversaciones
-# piloto con el prompt del Anexo A2: el rechazo escribe algo menos.
+# piloto con el prompt del Anexo A2: el rechazo escribe algo menos. En la condicion
+# humana responde una persona del equipo con el mismo protocolo: supuesto, misma
+# media que el modelo y mas variabilidad.
 LARGO_AGENTE = dict(validacion=187, rechazo=165)
 LARGO_AGENTE_DE = 25
-PROB_TURNO_RESPALDO = 0.01
+LARGO_HUMANO_DE = 40
+# Espera de la condicion humana: leer y tipear cada respuesta. Supuestos, sin fuente
+# directa. La de la IA sale de la latencia determinista del protocolo.
+TIEMPO_LECTURA_S = 5
+TIPEO_CARACTERES_S = 4
+VARIACION_ESPERA_HUMANO = 0.15     # DE del logaritmo, por episodio
+PROB_TURNO_RESPALDO = 0.01         # solo IA: una persona no tiene lineas de respaldo
 UMBRAL_ALERTA_MALESTAR = 9
 
 DOMINIOS = ["trabajo_estudio", "amistad", "familia_pareja", "uno_mismo"]
@@ -301,6 +309,8 @@ def medidas_post_episodio(episodios, participantes, rng):
     """Autenticidad percibida, los cuatro items de chequeo de manipulacion, la
     naturalidad, la credibilidad del bloque final y las medidas conductuales."""
     sospecha = dict(zip(participantes.id, participantes.sospecha))
+    # Flujo propio: la variacion de la espera humana no corre los sorteos de ensuciar().
+    rng_espera = np.random.default_rng([SEMILLA, 1])
     out = []
     for _, ep in episodios.iterrows():
         humano = ep.agente == "humano"
@@ -321,7 +331,13 @@ def medidas_post_episodio(episodios, participantes, rng):
             cred = CREDIBILIDAD_HUMANO_SOSPECHA
         else:
             cred = CREDIBILIDAD_HUMANO
-        largo = float(max(rng.normal(LARGO_AGENTE[ep.feedback], LARGO_AGENTE_DE), 20))
+        largo_de = LARGO_HUMANO_DE if humano else LARGO_AGENTE_DE
+        largo = round(float(max(rng.normal(LARGO_AGENTE[ep.feedback], largo_de), 20)), 1)
+        if humano:
+            espera = (N_RONDAS * (TIEMPO_LECTURA_S + largo / TIPEO_CARACTERES_S)
+                      * rng_espera.lognormal(0, VARIACION_ESPERA_HUMANO))
+        else:
+            espera = N_RONDAS * (1.2 + 0.045 * largo)
         out.append(dict(
             id=ep.id, episodio=ep.episodio,
             autenticidad=rr(aut),
@@ -329,10 +345,12 @@ def medidas_post_episodio(episodios, participantes, rng):
             mc_interes=rr(interes), mc_queria_cortar=rr(cortar),
             naturalidad=rr(NATURALIDAD[ep.feedback]),
             credibilidad=float(np.clip(rng.normal(*cred), 0, 100)),
-            largo_medio_agente=round(largo, 1),
+            largo_medio_agente=largo,
             turnos_hasta_cierre=N_RONDAS,
-            espera_acumulada_s=round(N_RONDAS * (1.2 + 0.045 * round(largo, 1)), 3),
-            turnos_respaldo=int(rng.binomial(N_RONDAS, PROB_TURNO_RESPALDO)),
+            espera_acumulada_s=round(espera, 3),
+            # Se sortea tambien en la condicion humana, y en este lugar, para no
+            # correr los sorteos de ensuciar().
+            turnos_respaldo=int(rng.binomial(N_RONDAS, PROB_TURNO_RESPALDO)) * (not humano),
         ))
     return pd.DataFrame(out)
 
@@ -435,6 +453,10 @@ def main():
             "naturalidad": NATURALIDAD,
             "largo_agente": LARGO_AGENTE,
             "largo_agente_de": LARGO_AGENTE_DE,
+            "largo_humano_de": LARGO_HUMANO_DE,
+            "tiempo_lectura_s": TIEMPO_LECTURA_S,
+            "tipeo_caracteres_s": TIPEO_CARACTERES_S,
+            "variacion_espera_humano": VARIACION_ESPERA_HUMANO,
             "prob_turno_respaldo": PROB_TURNO_RESPALDO,
             "umbral_alerta_malestar": UMBRAL_ALERTA_MALESTAR,
         }.items()]

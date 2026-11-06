@@ -31,6 +31,7 @@ venv/bin/python 00_potencia.py           # the power table; output in salida_pot
 | 8 | **The covariate predicted nothing**, though A6 counts on it to reduce residual variance | r(pre-rating, SUDS) = .01 | New `R_PRE_AUTOINFORME = 0.30`, inside the residual so the SDs do not change | r = .31 |
 | 9 | **Section 2.5's measures were missing:** naturalness, 0–100 credibility, suspicion, message length, accumulated wait, fallback turns. `etiqueta_reportada` belonged to the old check | Not in the data | Added. `falla_etiqueta` now applies the paper's criterion: conviction on the opposite side of the label | 46 episodes in 35 participants flagged; 43 report suspicion |
 | 10 | Mean age truncated by `int()` against the reported 25 | 24.44 | Rounded | 24.61 |
+| 11 | **The chat measures assumed one LLM behind both labels**, but a person from the research team answers in the human condition | 9 of 300 human episodes had fallback turns; waits came from the model's latency formula, which implies typing 22 characters per second | Human episodes have no fallback turns, more varied message lengths (SD 40, not 25) and a wait from reading and typing. Only these three columns change, and only in human episodes; `rondas` and `participantes` are byte-identical | 0 fallback turns; wait 146.8 s per episode, against 27.6 s for the AI |
 
 Values changed throughout, because several fixes change how many random draws are
 used. The seed is the same. **Nothing was tuned to make a contrast significant:**
@@ -58,7 +59,7 @@ Annex A5.5 says its middle column must match the script.
 - **A5.5, SUDS:** the table says effect +1,8; the script has always used +1,16 (ES 0,77 × 1,50). Use +1,16.
 - **A5.5, SCL slope:** the table says −0,04 µS per epoch; the script uses −0,40 µS per round. Use the latter.
 - **A5.5, SCR amplitude:** the table says median 0,35; it is the mean.
-- **A5.5, new rows:** `R_PRE_AUTOINFORME`, the credibility and naturalness means, the suspicion rate and the agent message length. All are assumptions; the suspicion rate comes from Kelly et al. and the message length from a handful of pilot conversations with the Annex A2 prompt.
+- **A5.5, new rows:** `R_PRE_AUTOINFORME`, the credibility and naturalness means, the suspicion rate, the agent message length, and the human condition's length SD (40), reading time (5 s per turn), typing speed (4 characters per second) and wait variation (SD of the log, 0.15). All are assumptions; the suspicion rate comes from Kelly et al. and the message length from a handful of pilot conversations with the Annex A2 prompt.
 - **A5.2:** say that effects grow across the episode (`rampa = r / 3`), so the mean over rounds is two thirds of the stated fraction. This was never documented.
 - **A6 table and §1:** replace with the table above. H1d goes from .86 to .83 and H1a from 1.00 to .99. The .80 threshold is now reached between 120 and 150, not at 120.
 - **§1:** delete the second of the two power paragraphs stuck together in that section.
@@ -70,3 +71,6 @@ Annex A5.5 says its middle column must match the script.
 2. **Self-report is generated per round, but the experiment measures it per episode.** The procedure (2.4) gives PANAS and SUDS after each episode, yet the data, the trajectory figure planned for PANAS and §5 treat them as per round. Either the procedure gains per-round items or the self-report data becomes per episode.
 3. **By chance, this dataset shows a level difference H1b predicts against:** human vs AI SCL under rejection, +0.32 µS, p = .035, though the generator has no such effect. It is about the false-positive rate to expect and is reported here rather than removed by changing the seed.
 4. **The experiment's condition square differs from the simulation's.** The web uses a Williams square, which balances carryover; the simulation keeps Elena's cyclic one. Both satisfy what the paper states.
+5. **A real person in the human condition changes what a human/AI difference means.** The effects keep the sizes of Annex A5, which were reasoned as coming from the label alone, while a difference can now also come from what each one writes. The paper's Method, Annex A2 and A5 need that review.
+6. **Human waits are about five times the AI's in this data (146.8 s against 27.6 s per episode), which is a new confound of the agent factor.** The AI's latency could be raised to match a person's, or the wait reported and used as a covariate. The physiological data does not model the wait, so neither choice changes it.
+7. **Three assumptions were kept with no difference between agents, for lack of a source:** mean message length, naturalness and credibility. A person may well differ on all three.

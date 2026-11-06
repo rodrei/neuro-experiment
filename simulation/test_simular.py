@@ -191,8 +191,32 @@ class TestEpisodeMeasures(Base):
         self.assertLess(lengths["rechazo"], lengths["validacion"])
         by_agent = self.episodes.groupby("agente").largo_medio_agente.mean()
         self.assertLess(abs(by_agent["humano"] - by_agent["ia"]), 8)
-        expected = 3 * (1.2 + 0.045 * self.episodes.largo_medio_agente)
-        self.assertTrue(np.allclose(self.episodes.espera_acumulada_s, expected, atol=0.01))
+
+    def test_only_the_ai_condition_has_fallback_turns(self):
+        """A person has no fixed lines to fall back on."""
+        turns = self.episodes.groupby("agente").turnos_respaldo.sum()
+        self.assertEqual(turns["humano"], 0)
+        self.assertGreater(turns["ia"], 0)
+
+    def test_the_ai_wait_follows_the_latency_formula(self):
+        ai = self.episodes[self.episodes.agente == "ia"]
+        expected = 3 * (1.2 + 0.045 * ai.largo_medio_agente)
+        self.assertTrue(np.allclose(ai.espera_acumulada_s, expected, atol=0.01))
+
+    def test_the_human_wait_comes_from_reading_and_typing(self):
+        """Longer than the AI's, grows with the length, and not an exact formula."""
+        human = self.episodes[self.episodes.agente == "humano"]
+        ai = self.episodes[self.episodes.agente == "ia"]
+        self.assertGreater(human.espera_acumulada_s.min(), ai.espera_acumulada_s.max() * 0.8)
+        self.assertGreater(human.espera_acumulada_s.mean(), 3 * ai.espera_acumulada_s.mean())
+        r = human.espera_acumulada_s.corr(human.largo_medio_agente)
+        self.assertGreater(r, 0.4)
+        self.assertLess(r, 0.95)
+
+    def test_people_vary_more_than_the_model_in_message_length(self):
+        sd = self.episodes.groupby(["agente", "feedback"]).largo_medio_agente.std()
+        for feedback in ("validacion", "rechazo"):
+            self.assertGreater(sd[("humano", feedback)], sd[("ia", feedback)] * 1.2)
 
     def test_a_rating_of_nine_or_more_raises_the_alert(self):
         e = self.episodes
