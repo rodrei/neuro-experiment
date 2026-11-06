@@ -71,11 +71,11 @@
   },
 
   "demo": {
-    "badge": "Demostración · no se registra nada",
-    "start_note": "Esta es una demostración del estudio para que puedas recorrerlo como si fueras participante. En el estudio, las conversaciones presentadas como con otro participante las responde una persona; en esta demostración, todas las responde un modelo de lenguaje externo. No se guarda nada de lo que escribas, pero los mensajes del chat se envían a ese modelo para generar las respuestas: no cuentes nada que no quieras compartir. La línea base está acortada y el botón Saltar permite pasar los cuestionarios.",
+    "badge": "Demostración · se guardan tus respuestas",
+    "start_note": "Esta es una demostración del estudio para que puedas recorrerlo como si fueras participante. En el estudio, las conversaciones presentadas como con otro participante las responde una persona; en esta demostración, todas las responde un modelo de lenguaje externo. Al terminar se guarda lo que escribiste y lo que respondiste, y lo puede ver el equipo de investigación, salvo que al final elijas retirar tus datos. Los mensajes del chat también se envían a ese modelo para generar las respuestas. No incluyas nombres ni cuentes nada que no quieras compartir. La línea base está acortada y el botón Saltar permite pasar los cuestionarios y las conversaciones.",
     "human_note": "En el estudio, esta conversación la responde una persona. En esta demostración la responde un modelo de lenguaje.",
     "end_title": "Fin de la demostración",
-    "end_body": "Recorriste el estudio completo. No se guardó nada de lo que escribiste."
+    "end_body": "Recorriste el estudio completo. Tus respuestas se guardaron."
   },
   "withdrawn": {
     "title": "Datos retirados",

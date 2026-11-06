@@ -34,8 +34,8 @@ Everything a participant reads is Argentine Spanish (voseo) and lives in
 |---|---|---|
 | **For** | Evaluators walking through the study | A full session |
 | **Baseline** | 15 s | 5 minutes |
-| **Data** | Nothing is stored: `/api/data` answers 403 | Four CSVs per session in `data/` |
-| **Screen** | A permanent «no se registra nada» badge, and notes saying the model answers every conversation and what goes to its provider | Experimenter fields on the start form |
+| **Data** | Four CSVs per session, with a generated id and no age or sex | Four CSVs per session |
+| **Screen** | A permanent badge saying the answers are saved, and notes saying the model answers every conversation, who sees the session and what goes to the model's provider | Experimenter fields on the start form |
 | **Saltar / F9** | On every screen, to pass the questionnaires; in the chat, it ends the conversation | Only in test mode, where it cuts the waits in the chat |
 | **Rows of the Latin squares** | Random | From the number in the participant id |
 | **API spend** | `MAX_TURNS_PER_DAY` across all sessions; past it, turns come from the fallback lines | No cap |
@@ -146,7 +146,9 @@ end the episode. Confirming the dialog flags the episode with
 
 ## Output
 
-Four CSVs per session in `data/`, prefixed `S1_<id>_seq<n>_<stamp>`.
+Four CSVs per session in `DATA_DIR` (`data/` by default, `/data` on fly.io),
+prefixed `S1_<id>_seq<n>_<stamp>`, with the stamp in UTC. A session that withdraws
+writes nothing. The team reads and downloads them at `/admin` (see `web/README.md`).
 
 | File | Content |
 |---|---|

@@ -14,9 +14,9 @@ It runs in a browser: `web/` (jsPsych + stdlib `http.server`, deployed on fly.io
 
 ## How to run
 
-- Web: `python3 -m web.server.app` → http://localhost:8080. Key in `OPENROUTER_API_KEY` or `openrouter_key.txt` (gitignored). Env: `DEMO_MODE` (default `1`; `0` is the full session with its CSVs), `PORT`, `DATA_DIR`, `ACCESS_CODE`, `LLM_TIMEOUT`, `RATE_LIMIT_PER_MINUTE`, `MAX_TURNS_PER_DAY`.
+- Web: `python3 -m web.server.app` → http://localhost:8080. Key in `OPENROUTER_API_KEY` or `openrouter_key.txt` (gitignored). Env: `DEMO_MODE` (default `1`; `0` is the full session), `PORT`, `DATA_DIR`, `ACCESS_CODE`, `ADMIN_CODE` (the team's password for `/admin`; empty turns it off), `LLM_TIMEOUT`, `RATE_LIMIT_PER_MINUTE`, `MAX_TURNS_PER_DAY`.
 - Tests (system Python, no network): `python3 -m unittest discover -s common -t . -v` and `python3 -m unittest discover -s web -t . -v`.
-- Browser check: `node web/e2e/run_flow.mjs --url <url> [--code X] [--shots DIR]` (global Playwright; adapts to the server's mode). Run it locally in both modes and after every deploy.
+- Browser check: `node web/e2e/run_flow.mjs --url <url> [--code X] [--admin Y] [--shots DIR]` (global Playwright; adapts to the server's mode). Run it locally in both modes and after every deploy. It saves sessions with ids starting `check-`, which `/admin` marks as tests.
 - Console chat to iterate on the prompt: `python3 -m common.llm_agent`.
 - Deploy: `fly deploy --app neuro-estudio1-demo` from the repo root (see `web/README.md`).
 
@@ -28,11 +28,11 @@ Dependency direction: `web/` → `common/` → `protocol/`, never back.
 
 **`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
 
-**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`; stateless proxy, the browser sends the full history each turn), `js/experiment.js` (timeline, row assignment, submission), `js/chat-plugin.js` (one episode per trial, experimenter hotkey, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
+**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`, `/admin`; stateless proxy, the browser sends the full history each turn), `server/admin.py` (the team's view of the saved sessions), `js/experiment.js` (timeline, row assignment, submission), `js/chat-plugin.js` (one episode per trial, experimenter hotkey, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
 
 **`simulation/`** — the simulated data behind the paper's Results, independent of the rest and with its own dependencies (numpy, pandas, scipy, openpyxl). A working copy of Elena's scripts, keeping their Spanish names so they can be diffed against hers; her originals on Drive are never modified. See `simulation/README.md`.
 
-Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`, `_chat`), prefix `S1_<id>_seq<n>_<stamp>`. In demo mode nothing is written.
+Output: four CSVs per session in `DATA_DIR` (`_events`, `_responses`, `_behavioral`, `_chat`), prefix `S1_<id>_seq<n>_<stamp>`, in both modes. A withdrawn session writes nothing.
 
 ## Design invariants (do not break)
 
@@ -43,7 +43,7 @@ Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`
 5. Post-episode order: PANAS → SAM → SUDS → authenticity → manipulation checks → naturalness. The baseline has no interlocutor items.
 6. Every message is stored verbatim with origin, shown latency, length and turn number.
 7. Agent messages are stamped when they reach the screen, not when requested or when the typing indicator starts. Every relevant event leaves a marker (`markers.json`).
-8. When the demo says nothing is recorded, `/api/data` must refuse to store.
+8. The demo says the session is saved and who sees it, and withdrawing at the end leaves nothing on the server. `/admin` shows what people wrote: it keeps its own password, separate from the evaluators' code, and everything from a session is escaped before it reaches the page.
 9. The demo says the model answers every conversation, on the start form and on each human announcement. The debriefing describes the study as designed and does not mention it, so `DEMO_MODE=0` must not be used with real participants until the human chat exists.
 
 ## Known pending items

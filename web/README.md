@@ -20,7 +20,8 @@ Serves <http://localhost:8080>. Environment variables:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `DEMO_MODE` | `1` | `1`: short timings, the «no se registra nada» notice, nothing stored. `0`: the full session and its four CSVs |
+| `DEMO_MODE` | `1` | `1`: short timings, Saltar, and a notice of what is saved and who sees it. `0`: the full session. Both save its four CSVs |
+| `ADMIN_CODE` | empty | The team's password for `/admin`, separate from `ACCESS_CODE`. Empty: `/admin` is off |
 | `PORT` | `8080` | Listening port |
 | `DATA_DIR` | `data/` | Where the CSVs are written |
 | `ACCESS_CODE` | empty | If set, `/api/turn` and `/api/data` require it |
@@ -37,7 +38,8 @@ Tests: `python3 -m unittest discover -s web -t . -v`
 
 | File | What it does |
 | --- | --- |
-| `server/app.py` | Serves the page; `GET /api/protocol` (with `demo_mode`), `GET /api/health` (LLM probe, cached 60 s, `?refresh=1`), `POST /api/turn` (stateless proxy to the LLM: `{feedback, history, fallback_line}` → `{text, origin, fallback_reason}`; a history longer than an episode is 400), `POST /api/data` (writes the four CSVs; 403 in demo mode). Stdlib only |
+| `server/app.py` | Serves the page; `GET /api/protocol` (with `demo_mode`), `GET /api/health` (LLM probe, cached 60 s, `?refresh=1`), `POST /api/turn` (stateless proxy to the LLM: `{feedback, history, fallback_line}` → `{text, origin, fallback_reason}`; a history longer than an episode is 400), `POST /api/data` (writes the four CSVs). Stdlib only |
+| `server/admin.py` | The team's view at `/admin`: lists, shows and downloads the saved sessions. Server-rendered, no JavaScript |
 | `index.html` | Start form (id, age, sex, the two Latin square rows, access code, test mode) and the LLM pre-flight line; in demo mode, only the access code and the notice |
 | `js/protocol.js` | Loads `/api/protocol`; `parameters()`, `fallbackLine()`, `fill()` |
 | `js/chat-plugin.js` | Custom plugin: one episode in one trial — fixed opening, three rounds, final hold, experimenter hotkey, fallback banner in test mode |
@@ -95,9 +97,24 @@ fly deploy --app neuro-estudio1-demo
 
 `Dockerfile` and `fly.toml` are at the **repo root**: the container needs
 `protocol/` and `common/` besides `web/`. `fly.toml` sets `DEMO_MODE = "1"`.
-Secrets: `OPENROUTER_API_KEY` and `ACCESS_CODE` (`fly secrets set
+Secrets: `OPENROUTER_API_KEY`, `ACCESS_CODE` and `ADMIN_CODE` (`fly secrets set
 ACCESS_CODE=<new> --app neuro-estudio1-demo`). It is a public URL that spends
 OpenRouter credit: keep a code and rotate it after each demo.
+
+### The saved sessions
+
+Each session is saved as four CSVs on the volume mounted at `/data`, when it ends.
+A session left unfinished is lost, because the browser holds it until then.
+
+The team reads and downloads them at `/admin`, with any user name and the password
+in `ADMIN_CODE`: the list, each session's conversations and responses, each file,
+each session as a zip, and everything as a zip. The page shows what people wrote,
+so share that password only within the team, and never with the evaluators.
+
+The volume is tied to one machine, and fly keeps its daily snapshots for 5 days.
+It is not a backup: download everything from `/admin` regularly. A CSV opened in a
+spreadsheet holds text as participants wrote it, unchanged, so a cell starting with
+`=` can run as a formula: decline any prompt to enable external content.
 
 ### Four things that start billing silently
 
@@ -115,6 +132,6 @@ traffic. This app uses 1 machine and 1 GB.
 
 ## What it does not do
 
-No database, no accounts, no attention checks, no pictorial SAM, no phone
+No database, no individual accounts (the team shares one password), no attention checks, no pictorial SAM, no phone
 support (a notice asks for a computer), no hardware trigger output (LSL, serial
 or parallel): `_events.csv` is aligned with the recording offline, by `t_unix`.

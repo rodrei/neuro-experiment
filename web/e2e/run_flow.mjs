@@ -1,6 +1,6 @@
 /* End-to-end check of the web flow in a real browser.
  *
- *   node web/e2e/run_flow.mjs --url http://localhost:8080 [--code X] [--shots DIR]
+ *   node web/e2e/run_flow.mjs --url http://localhost:8080 [--code X] [--admin Y] [--shots DIR]
  *
  * Reads the mode from /api/protocol and adapts: in demo mode it asserts that
  * nothing is sent to /api/data, otherwise that the four files are saved.
@@ -23,7 +23,10 @@ import path from "node:path";
 const args = parseArgs(process.argv.slice(2));
 const URL_BASE = args.url || "http://localhost:8080";
 const CODE = args.code || "";
+const ADMIN = args.admin || "";
 const SHOTS = args.shots || "";
+
+let savedFiles = [];      // what /api/data answered for the full flow's session
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const playwrightDir = process.env.PLAYWRIGHT_DIR
@@ -91,7 +94,7 @@ async function openStart(browser, viewport) {
   page.on("console", (m) => {
     if (m.type() === "error") page.errors.push("console: " + m.text());
   });
-  await page.goto(URL_BASE);
+  await page.goto(URL_BASE + "/?check");
   await page.waitForFunction(
     () => document.getElementById("load-status").textContent.includes("cargado"),
     null, { timeout: 30000 });
@@ -101,7 +104,7 @@ async function openStart(browser, viewport) {
 }
 
 async function begin(page, { testMode }) {
-  if (!DEMO) await page.fill("input[name=participant_id]", "e2e7");
+  if (!DEMO) await page.fill("input[name=participant_id]", "check-7");
   if (testMode) {
     await page.evaluate(() => {
       document.querySelector("input[name=test_mode]").checked = true;
@@ -145,10 +148,10 @@ async function answerScreen(page, kind) {
   return false;
 }
 
-/* Research mode only: withdrawing leaves nothing on the server, and FIN ends an
- * episode early. Everything else is skipped, which must not break the run. */
+/* Withdrawing leaves nothing on the server, and FIN ends an episode early.
+ * Everything else is skipped, which must not break the run. */
 async function withdrawFlow(browser) {
-  console.log("\n== withdrawal and experimenter FIN (research mode)");
+  console.log("\n== withdrawal and experimenter FIN");
   const page = await openStart(browser, { width: 1280, height: 800 });
   const posted = [];
   page.on("request", (r) => {
@@ -197,6 +200,59 @@ async function withdrawFlow(browser) {
   check(posted.length === 0, "a withdrawn session sends nothing to /api/data");
   check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
   await page.close();
+}
+
+/* The team's view, against the session the full flow just saved. */
+async function adminFlow(browser) {
+  console.log("\n== the team's view of the sessions");
+  const open = (path, password) => fetch(URL_BASE + path, {
+    headers: password === undefined ? {} : {
+      Authorization: "Basic " + Buffer.from("equipo:" + password).toString("base64"),
+    },
+  });
+  const suffix = "_responses.csv";
+  const file = savedFiles.find((name) => name.endsWith(suffix));
+  check(Boolean(file), "the full flow saved a session to look for");
+  if (!file) return;
+  const base = file.slice(0, -suffix.length);
+
+  check((await open("/admin")).status === 401, "/admin asks for a password");
+  check((await open("/admin", "wrong")).status === 401, "a wrong password is refused");
+  if (CODE) {
+    check((await open("/admin", CODE)).status === 401, "the evaluators' code does not open it");
+  }
+  const list = await open("/admin", ADMIN);
+  check(list.status === 200 && (await list.text()).includes(base), "the session is in the list");
+
+  const detail = await (await open("/admin/session/" + base, ADMIN)).text();
+  check(detail.includes("Me sentí muy mal con lo que pasó"), "its page shows the conversation");
+  check(detail.includes("ep1_condition"), "its page shows the responses");
+
+  const csvResponse = await open(`/admin/file/${base}_chat.csv`, ADMIN);
+  check(csvResponse.status === 200
+        && (csvResponse.headers.get("content-disposition") || "").includes("attachment")
+        && (await csvResponse.text()).includes("Me sentí muy mal con lo que pasó"),
+        "its transcript downloads");
+
+  const isZip = async (response) => {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return response.status === 200 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  };
+  check(await isZip(await open(`/admin/session/${base}.zip`, ADMIN)), "the session downloads as a zip");
+  check(await isZip(await open("/admin/all.zip", ADMIN)), "everything downloads as a zip");
+
+  if (SHOTS) {
+    const context = await browser.newContext({
+      httpCredentials: { username: "equipo", password: ADMIN },
+      viewport: { width: 1280, height: 800 },
+    });
+    const page = await context.newPage();
+    await page.goto(URL_BASE + "/admin");
+    await shot(page, "admin-list");
+    await page.goto(URL_BASE + "/admin/session/" + base);
+    await shot(page, "admin-session");
+    await context.close();
+  }
 }
 
 /* F9, unless a chat has just appeared: checked in the page, in one step, so a
@@ -274,7 +330,7 @@ async function skipChatFlow(browser) {
     await page.waitForTimeout(100);
   }
   check(last === "demo-end", `the session still reaches the end (${last})`);
-  check(posted.length === 0, "nothing was sent to /api/data");
+  check(posted.length === 1, "a session with skipped conversations is still saved");
   check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
   await page.close();
 }
@@ -290,10 +346,18 @@ async function fullFlow(browser) {
   page.on("request", (r) => {
     if (r.url().endsWith("/api/data")) posted.push(r.url());
   });
+  page.on("response", async (r) => {
+    if (r.url().endsWith("/api/data") && r.ok()) savedFiles = (await r.json()).files;
+  });
   page.on("dialog", (d) => d.accept(EXPERIMENTER_LINE));
 
   check(DEMO === await page.isVisible("#demo-badge"),
-        "the 'nothing is recorded' badge shows only in the demo");
+        "the demo's badge shows only in the demo");
+  if (DEMO) {
+    check((await page.textContent("#demo-badge")) === TXT.demo.badge
+          && (await page.textContent("#demo-note")) === TXT.demo.start_note,
+          "the demo says the session is saved and who can see it");
+  }
   check(!DEMO === await page.isVisible("input[name=age]"),
         "the experimenter's fields show only outside the demo");
   check(!DEMO === await page.isVisible("#llm-health"),
@@ -372,17 +436,21 @@ async function fullFlow(browser) {
         continue;
       }
     }
-    if (kind === "chat") continue;
+    if (kind === "chat") {
+      // In test mode F9 cuts the wait; in the demo it would end the conversation.
+      if (!DEMO) await page.keyboard.press("F9");
+      continue;
+    }
     if (!(await answerScreen(page, kind))) await skipOutsideChat(page);
   }
 
   const final = screens[screens.length - 1].kind;
   check(final === (DEMO ? "demo-end" : "saved"), `reached the last screen (${final})`);
+  check(posted.length === 1, "the session was sent to /api/data once");
+  check(savedFiles.length === 4, "four files saved");
   if (DEMO) {
-    check(posted.length === 0, "the demo sent nothing to /api/data");
-  } else {
-    const savedText = screens[screens.length - 1].text;
-    check(/Se guardaron 4 archivos/.test(savedText), "four files saved");
+    check(screens[screens.length - 1].text.includes(TXT.demo.end_body),
+          "the demo's last screen says the answers were saved");
   }
 
   const kinds = screens.map((s) => s.kind).filter((k) => k !== "blank");
@@ -581,7 +649,8 @@ try {
   await fullFlow(browser);
   await elicitationFlow(browser);
   if (DEMO) await skipChatFlow(browser);
-  if (!DEMO) await withdrawFlow(browser);
+  await withdrawFlow(browser);
+  if (ADMIN) await adminFlow(browser);
 } finally {
   await browser.close();
 }

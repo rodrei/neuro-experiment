@@ -9,8 +9,9 @@
  * domain of each condition from protocol/domain_sequences.json, two Latin
  * squares indexed by the rows chosen on the start form.
  *
- * In demo mode the server stores nothing: the page says so, and the submission
- * is replaced by a closing screen. */
+ * Both modes save the session at the end, unless the participant withdraws. In
+ * demo mode the page says so, and there is no experimenter to fill in the id,
+ * age or sex. */
 
 let SESSION_CONFIG = null;
 
@@ -70,11 +71,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     SESSION_CONFIG.domain_sequence = parseInt(SESSION_CONFIG.domain_sequence, 10);
     // An unchecked checkbox is not in the FormData.
     SESSION_CONFIG.test_mode = data.get("test_mode") === "1";
+    if (isDemo()) {
+      // The experimenter's fields are hidden here: their defaults are not data.
+      SESSION_CONFIG.participant_id = demoSessionId();
+      SESSION_CONFIG.age = null;
+      SESSION_CONFIG.sex = null;
+    }
     document.getElementById("start").style.display = "none";
     document.getElementById("jspsych-target").classList.add("active");
     runExperiment();
   });
 });
+
+/* A demo session has nobody to type an id. `?check` marks the browser check's
+ * sessions, so the team's full download can leave them out. */
+function demoSessionId() {
+  const prefix = new URLSearchParams(location.search).has("check") ? "check-" : "demo-";
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return prefix + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 /* Which rows of the two Latin squares a participant gets, from the number in
  * their id: the sequence cycles every participant and the domain row every
@@ -89,7 +104,7 @@ function assignedRows(id) {
            domain_sequence: Math.floor(index / 4) % 4 + 1 };
 }
 
-/* The hosted walkthrough: a notice that nothing is recorded, no experimenter
+/* The hosted walkthrough: a notice of what is saved and who sees it, no experimenter
  * fields, and any row of the squares. */
 function applyDemoMode(sequenceSelect, domainSelect) {
   document.body.classList.add("demo");
@@ -398,10 +413,6 @@ function endScreen(title, body) {
 /* Builds the four files and sends them to the server. */
 async function submit(jsPsych, generalEvents, session) {
   const txt = texts();
-  if (isDemo()) {
-    endScreen(txt.demo.end_title, txt.demo.end_body);
-    return;
-  }
   if (session.withdrawn) {
     endScreen(txt.withdrawn.title, txt.withdrawn.body);
     return;
@@ -494,7 +505,8 @@ async function submit(jsPsych, generalEvents, session) {
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const obj = await resp.json();
-    endScreen("Listo", `Gracias por participar.
+    if (isDemo()) endScreen(txt.demo.end_title, txt.demo.end_body);
+    else endScreen("Listo", `Gracias por participar.
       Se guardaron ${obj.files.length} archivos.`);
   } catch (e) {
     // A network problem must not take the session down with it.

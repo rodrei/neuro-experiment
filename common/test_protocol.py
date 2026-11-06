@@ -78,8 +78,15 @@ class TestTexts(unittest.TestCase):
         self.assertTrue(final["suspicion"].strip())
         self.assertIn("{domain}", final["stood_out"])
 
-    def test_the_demo_notice_says_nothing_is_recorded(self):
-        self.assertIn("no se registra", protocol.texts()["demo"]["badge"].lower())
+    def test_the_demo_says_that_the_session_is_saved_and_who_can_see_it(self):
+        demo = protocol.texts()["demo"]
+        self.assertIn("se guardan", demo["badge"].lower())
+        self.assertIn("equipo de investigación", demo["start_note"])
+        self.assertIn("retirar", demo["start_note"])
+        self.assertIn("se guardaron", demo["end_body"].lower())
+        for text in (demo["badge"], demo["start_note"], demo["end_body"]):
+            self.assertNotIn("no se guarda", text.lower())
+            self.assertNotIn("no se registra", text.lower())
 
 
 class TestScales(unittest.TestCase):

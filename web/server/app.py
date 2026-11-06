@@ -2,20 +2,24 @@
 """
 Server of the Study 1 web version.
 
-Five responsibilities and nothing else:
+Six responsibilities and nothing else:
 
   GET  /               and static files -> serves web/
   GET  /api/protocol                    -> the protocol built by common.protocol
   GET  /api/health                      -> is the LLM reachable? (cached probe)
   POST /api/turn                        -> proxy to the LLM (the key never leaves here)
   POST /api/data                        -> writes the session's four CSVs
+  GET  /admin...                        -> the team's view of the sessions (admin.py)
 
-DEMO_MODE (on by default) is the hosted walkthrough for the evaluators: the
-page says nothing is recorded, so /api/data refuses to store anything, and a
-daily cap limits what repeated walkthroughs can spend. DEMO_MODE=0 is the full
-study: real timings and the four CSVs.
+DEMO_MODE (on by default) is the hosted walkthrough for the evaluators: short
+timings, the skip button, and a daily cap on what repeated walkthroughs can
+spend. DEMO_MODE=0 is the full study, with real timings. Both save the session,
+unless the participant withdraws.
 
-It is `http.server` from the standard library on purpose: it is five routes,
+/admin needs ADMIN_CODE, a password separate from the evaluators' ACCESS_CODE,
+because it shows what people wrote. With no ADMIN_CODE it does not exist.
+
+It is `http.server` from the standard library on purpose: it is a few routes,
 and that way the Docker image needs no `pip install` and running it locally
 needs no environment.
 
@@ -26,16 +30,20 @@ and handles several sessions in parallel with no extra work.
 Run locally:  python3 -m web.server.app
 """
 
+import base64
+import binascii
+import hmac
 import http.server
 import json
 import os
 import posixpath
+import re
 import socketserver
 import sys
 import threading
 import time
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -43,11 +51,13 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from common import llm_agent, protocol, output
+from web.server import admin
 
 WEB_DIR = os.path.dirname(HERE)
 
 # Environment configuration. The tests override it at module level.
 ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
+ADMIN_CODE = os.environ.get("ADMIN_CODE", "")
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(ROOT, "data"))
 PORT = int(os.environ.get("PORT", "8080"))
 LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "20"))
@@ -55,6 +65,8 @@ RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "30"))
 DEMO_MODE = os.environ.get("DEMO_MODE", "1") != "0"
 # Twelve turns per walkthrough: this is fifty walkthroughs a day.
 MAX_TURNS_PER_DAY = int(os.environ.get("MAX_TURNS_PER_DAY", "600"))
+# A full session is well under 1 MB, even with long situations.
+MAX_BODY_BYTES = 5 * 1024 * 1024
 
 # Agent transport. None = the real one (OpenRouter). The tests override it.
 TRANSPORT = None
@@ -70,6 +82,15 @@ MIME_TYPES = {
     ".json": "application/json; charset=utf-8",
     ".png": "image/png",
     ".svg": "image/svg+xml",
+}
+
+ADMIN_HEADERS = {
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex, nofollow",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
 }
 
 _visits = {}
@@ -137,6 +158,19 @@ def _health(refresh=False):
     return result
 
 
+class BodyTooLarge(Exception):
+    pass
+
+
+def _safe_for_filename(value):
+    """Only what cannot leave the data folder: the id comes from the browser."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", str(value))[:60]
+
+
+def _is_table(rows):
+    return isinstance(rows, list) and all(isinstance(r, dict) for r in rows)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
 
     server_version = "Study1Web"
@@ -147,12 +181,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # -----------------------------------------------------------------
     # helpers
     # -----------------------------------------------------------------
-    def _respond(self, status, body, content_type="application/json; charset=utf-8"):
+    def _respond(self, status, body, content_type="application/json; charset=utf-8",
+                 headers=None):
         if isinstance(body, str):
             body = body.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -166,12 +203,49 @@ class Handler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0") or 0)
         if length <= 0:
             return {}
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        if length > MAX_BODY_BYTES:
+            raise BodyTooLarge()
+        body = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(body, dict):
+            raise ValueError("not an object")
+        return body
 
     def _code_ok(self, body):
         if not ACCESS_CODE:
             return True
         return body.get("access_code", "") == ACCESS_CODE
+
+    def _client_ip(self):
+        """Behind Fly's proxy every connection comes from the proxy, which puts
+        the visitor's address in this header."""
+        return self.headers.get("Fly-Client-IP") or self.client_address[0]
+
+    def _admin_password_ok(self):
+        scheme, _, token = self.headers.get("Authorization", "").partition(" ")
+        if scheme.lower() != "basic":
+            return False
+        try:
+            decoded = base64.b64decode(token, validate=True)
+        except (binascii.Error, ValueError):
+            return False
+        _, _, password = decoded.partition(b":")
+        return hmac.compare_digest(password, ADMIN_CODE.encode("utf-8"))
+
+    def _admin(self, path):
+        if not ADMIN_CODE:
+            return self._error(404, "not found")
+        if not self._admin_password_ok():
+            if not _allowed(self._client_ip()):
+                return self._error(429, "too many requests")
+            return self._respond(
+                401, "Hace falta la contraseña del equipo.", "text/plain; charset=utf-8",
+                dict(ADMIN_HEADERS,
+                     **{"WWW-Authenticate": 'Basic realm="Estudio 1", charset="UTF-8"'}))
+        status, body, content_type, download = admin.handle(path, DATA_DIR)
+        headers = dict(ADMIN_HEADERS)
+        if download:
+            headers["Content-Disposition"] = 'attachment; filename="%s"' % download
+        return self._respond(status, body, content_type, headers)
 
     # -----------------------------------------------------------------
     # GET
@@ -186,6 +260,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/protocol":
             return self._json(200, dict(protocol.everything(),
                                         demo_mode=DEMO_MODE))
+        if path == "/admin" or path.startswith("/admin/"):
+            return self._admin(urllib.parse.unquote(path))
         return self._static(path)
 
     def _static(self, path):
@@ -209,11 +285,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # -----------------------------------------------------------------
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
-        ip = self.client_address[0]
-        if not _allowed(ip):
+        if not _allowed(self._client_ip()):
             return self._error(429, "too many requests")
         try:
             body = self._read_json()
+        except BodyTooLarge:
+            return self._error(413, "too large")
         except ValueError:
             return self._error(400, "invalid json")
         if not self._code_ok(body):
@@ -259,23 +336,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 "fallback_reason": reason})
 
     def _data(self, body):
-        """Writes the four CSVs, prefixed S1_<id>_seq<sequence>_<stamp>."""
-        if DEMO_MODE:
-            return self._error(403, "the demo does not store sessions")
-        info = body.get("info") or {}
-        responses = dict(body.get("responses") or {})
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base = output.base_name(info.get("participant_id") or "no_id",
-                                "seq%s" % (info.get("sequence") or "0"),
-                                stamp)
+        """Writes the four CSVs, prefixed S1_<id>_seq<sequence>_<stamp> (UTC)."""
+        info = body.get("info", {})
+        responses = body.get("responses", {})
+        behavioral = body.get("behavioral", [])
+        chat = body.get("chat", [])
+        events = body.get("events", [])
+        if not (isinstance(info, dict) and isinstance(responses, dict)
+                and _is_table(behavioral) and _is_table(chat) and _is_table(events)):
+            return self._error(400, "malformed session")
+        responses = dict(responses)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        base = output.base_name(
+            _safe_for_filename(info.get("participant_id") or "no_id"),
+            "seq" + _safe_for_filename(info.get("sequence") or "0"),
+            stamp)
         responses["platform"] = "web"
+        responses["mode"] = "demo" if DEMO_MODE else "research"
         responses["file"] = base
-        paths = output.write_all(
-            DATA_DIR, base,
-            responses=responses,
-            behavioral=body.get("behavioral") or [],
-            chat=body.get("chat") or [],
-            events=body.get("events") or [])
+        try:
+            paths = output.write_all(DATA_DIR, base, responses=responses,
+                                     behavioral=behavioral, chat=chat, events=events)
+        except OSError as e:
+            print("Could not save session %s: %s" % (base, e), flush=True)
+            return self._error(500, "could not save")
         return self._json(200, {"ok": True,
                                 "files": [os.path.basename(p) for p in paths]})
 
@@ -296,8 +380,9 @@ def create_server(port=0, data_dir=None):
 def main():
     server = create_server(PORT)
     print("Study 1 — web at http://0.0.0.0:%d" % server.server_address[1])
-    print("DEMO MODE: nothing is stored" if DEMO_MODE
-          else "Data in %s" % DATA_DIR)
+    print("Mode: %s. Data in %s" % ("demo" if DEMO_MODE else "research", DATA_DIR))
+    if not ADMIN_CODE:
+        print("NOTICE: no ADMIN_CODE; /admin is off.")
     source = llm_agent.api_key_source()
     if source == "env":
         print("LLM key: found in OPENROUTER_API_KEY")

@@ -22,10 +22,9 @@ primary_region = "gru"
   auto_start_machines = true
   min_machines_running = 0
 
-# Where the sessions' CSVs go when DEMO_MODE=0; in demo mode nothing is written.
-# The volume is tied to this machine: download the CSVs with `fly sftp get`, do
-# not treat it as durable storage. The volume keeps its original name on fly
-# ("datos"); only the mount path is English.
+# Where the sessions' CSVs go. The volume is tied to this machine: download them
+# from /admin, do not treat it as durable storage. It keeps its original name on
+# fly ("datos"); only the mount path is English.
 [[mounts]]
   source = "datos"
   destination = "/data"
