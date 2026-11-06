@@ -28,6 +28,12 @@
  * Experimenter intervention: Ctrl+Shift+E pauses the chat. The experimenter
  * can type the agent's next message (origin "experimenter"), resume, or end
  * the episode. Whatever they do, the episode is flagged.
+ *
+ * The first message box starts with the situation the participant wrote at the
+ * start of the session. Nothing is sent until they send it, and they can edit it.
+ *
+ * In the demo, ChatEpisode.end() leaves the conversation at any moment. A reply
+ * still on its way is dropped when it arrives.
  */
 
 var jsPsychChatEpisode = (function (jspsych) {
@@ -42,6 +48,7 @@ var jsPsychChatEpisode = (function (jspsych) {
       feedback: { type: jspsych.ParameterType.STRING },       // validation | rejection
       domain: { type: jspsych.ParameterType.OBJECT },         // {id, label}
       label: { type: jspsych.ParameterType.STRING },          // chat bar
+      situation: { type: jspsych.ParameterType.STRING },      // first message box
       access_code: { type: jspsych.ParameterType.STRING },
       test_mode: { type: jspsych.ParameterType.BOOL },
     },
@@ -51,6 +58,9 @@ var jsPsychChatEpisode = (function (jspsych) {
    * how to cut itself short; ChatEpisode.skip() calls it in test mode, and the
    * experimenter's FIN calls it too. */
   let currentSkip = null;
+
+  /* Ends the episode under way; ChatEpisode.end() calls it. */
+  let currentEnd = null;
 
   function wait(ms) {
     return new Promise((resolve) => {
@@ -110,6 +120,7 @@ var jsPsychChatEpisode = (function (jspsych) {
       let turn = 0;                // message counter within the episode
       let overrideLine = null;     // the experimenter's next agent message
       let endRequested = false;    // the experimenter ended the episode
+      let abandoned = false;       // ChatEpisode.end() left the episode
 
       const now = () => (performance.now() - t0) / 1000;
 
@@ -224,11 +235,14 @@ var jsPsychChatEpisode = (function (jspsych) {
         const shown = latencyOf(text);
         elStatus.textContent = "en línea";
         await wait(p.min_reading_time * 1000);
+        if (abandoned) return;
         elStatus.textContent = "escribiendo…";
         await wait(shown * 1000);
+        if (abandoned) return;
         elStatus.textContent = "en línea";
         addBubble("agent", text);
         await nextPaint();
+        if (abandoned) return;
         record({ author: "agent", text: text, origin: origin,
                  fallback_reason: reason || null, round: round,
                  shown_latency_s: Number(shown.toFixed(3)) });
@@ -245,11 +259,15 @@ var jsPsychChatEpisode = (function (jspsych) {
 
         return new Promise((resolve) => {
           const start = performance.now();
-          elText.value = "";
+          const prefill = options.prefill || "";
+          elText.value = prefill;
+          elText.classList.toggle("prefilled", Boolean(prefill));
           elText.placeholder = options.placeholder;
           elText.disabled = false;
           elSend.disabled = false;
           elText.focus();
+          elText.setSelectionRange(prefill.length, prefill.length);
+          elText.scrollTop = 0;
 
           let timer = null;
 
@@ -259,6 +277,7 @@ var jsPsychChatEpisode = (function (jspsych) {
             if (timer) clearTimeout(timer);
             currentSkip = null;
             elText.value = "";
+            elText.classList.remove("prefilled");
             elText.disabled = true;
             elSend.disabled = true;
             resolve();
@@ -304,9 +323,12 @@ var jsPsychChatEpisode = (function (jspsych) {
 
           // Test mode sends whatever there is; the opening round, which
           // passes a filler, fills an empty box so the conversation has
-          // something to react to. Ending the episode never invents text.
+          // something to react to. Ending the episode never invents text, nor
+          // sends a pre-filled situation the participant has not touched.
           currentSkip = () => {
-            if (elText.value.trim()) return send();
+            if (abandoned) return finish();
+            const untouched = elText.value === prefill;
+            if (elText.value.trim() && !(endRequested && untouched)) return send();
             if (filler && !endRequested) {
               elText.value = filler;
               return send();
@@ -338,11 +360,31 @@ var jsPsychChatEpisode = (function (jspsych) {
       // ---------------------------------------------------------------
       const self = this;
 
+      function finishEpisode() {
+        currentEnd = null;
+        mark("episode_end", trial.episode + "_" + trial.condition);
+
+        document.removeEventListener("keydown", intervene);
+        document.body.classList.remove("in-chat");
+        data.agent_chars_mean = data.agent_turns
+          ? Number((data.agent_chars_total / data.agent_turns).toFixed(1)) : null;
+        data.transcript = transcript;
+        data.events = events;
+        self.jsPsych.finishTrial(data);
+      }
+
+      currentEnd = () => {
+        abandoned = true;
+        if (currentSkip) currentSkip();
+        finishEpisode();
+      };
+
       (async function run() {
         mark("episode_start", trial.episode + "_" + trial.condition);
 
         await agentSays(fill(t.chat.opening, { domain: trial.domain.label }),
                         "opening_message", "opening", null, 0);
+        if (abandoned) return;
 
         for (let round = 1; round <= p.rounds && !endRequested; round++) {
           mark("round_start_" + round, trial.condition);
@@ -353,7 +395,9 @@ var jsPsychChatEpisode = (function (jspsych) {
             placeholder: round === 1 ? t.chat.placeholder_situation
                                      : t.chat.placeholder_feeling,
             filler: round === 1 ? p.test_filler_text : "",
+            prefill: round === 1 ? trial.situation : "",
           });
+          if (abandoned) return;
           if (endRequested) break;
 
           let text, origin, reason;
@@ -368,10 +412,12 @@ var jsPsychChatEpisode = (function (jspsych) {
             // applied afterwards, on the length of the generated text.
             [text, origin, reason] = await requestTurn(
               fallbackLine(trial.feedback, round));
+            if (abandoned) return;
             if (origin === "fallback") showFallback(round, reason);
             else showRecovered();
           }
           await agentSays(text, "agent_message_" + round, origin, reason, round);
+          if (abandoned) return;
           data.agent_turns += 1;
           data.agent_chars_total += text.length;
           data.rounds_completed = round;
@@ -381,6 +427,7 @@ var jsPsychChatEpisode = (function (jspsych) {
         // locked to it is not cut by the measures.
         elHelp.textContent = t.chat.ended;
         await wait(p.final_message_hold * 1000);
+        if (abandoned) return;
         elSend.hidden = true;
         elContinue.hidden = false;
         await new Promise((resolve) => {
@@ -391,16 +438,9 @@ var jsPsychChatEpisode = (function (jspsych) {
           elContinue.addEventListener("click", done);
           currentSkip = done;
         });
+        if (abandoned) return;
 
-        mark("episode_end", trial.episode + "_" + trial.condition);
-
-        document.removeEventListener("keydown", intervene);
-        document.body.classList.remove("in-chat");
-        data.agent_chars_mean = data.agent_turns
-          ? Number((data.agent_chars_total / data.agent_turns).toFixed(1)) : null;
-        data.transcript = transcript;
-        data.events = events;
-        self.jsPsych.finishTrial(data);
+        finishEpisode();
       })();
     }
   }
@@ -408,6 +448,9 @@ var jsPsychChatEpisode = (function (jspsych) {
   ChatEpisode.info = info;
   ChatEpisode.skip = () => {
     if (currentSkip) currentSkip();
+  };
+  ChatEpisode.end = () => {
+    if (currentEnd) currentEnd();
   };
   return ChatEpisode;
 })(jsPsychModule);

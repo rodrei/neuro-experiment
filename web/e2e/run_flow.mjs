@@ -163,6 +163,11 @@ async function withdrawFlow(browser) {
   for (let i = 0; i < 1500; i++) {
     await page.waitForTimeout(100);
     const kind = await classify(page);
+    // The situations get text, so FIN meets a pre-filled box.
+    if (kind === "text-question" && !ended) {
+      await answerScreen(page, kind);
+      continue;
+    }
     if (kind === "chat" && !ended) {
       const authors = await page.$$eval(".chat-messages .bubble",
         (b) => b.map((x) => (x.classList.contains("agent") ? "A" : "P")).join(""));
@@ -187,9 +192,89 @@ async function withdrawFlow(browser) {
     if ((await targetText(page)).startsWith(TXT.withdrawn.title)) break;
     await page.keyboard.press("F9");
   }
-  check(endedWith === "A", `FIN ended the first episode at once (got ${endedWith})`);
+  check(endedWith === "A", `FIN ended the first episode without sending the box (got ${endedWith})`);
   check((await targetText(page)).startsWith(TXT.withdrawn.title), "the withdrawal screen appears");
   check(posted.length === 0, "a withdrawn session sends nothing to /api/data");
+  check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
+  await page.close();
+}
+
+/* F9, unless a chat has just appeared: checked in the page, in one step, so a
+ * chat that starts between two commands is not skipped by accident. */
+async function skipOutsideChat(page) {
+  await page.evaluate(() => {
+    if (document.querySelector("#jspsych-target .chat")) return;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "F9", bubbles: true }));
+  });
+}
+
+/* Demo only: Saltar and F9 end a conversation at any moment, and what was under
+ * way in the skipped one must not leak into the next. */
+async function skipChatFlow(browser) {
+  console.log("\n== skipping conversations (demo)");
+  const page = await openStart(browser, { width: 1280, height: 800 });
+  const posted = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/data")) posted.push(r.url());
+  });
+  await begin(page, { testMode: false });
+
+  const untilChat = async () => {
+    for (let i = 0; i < 400; i++) {
+      if (await classify(page) === "chat") return true;
+      await skipOutsideChat(page);
+      await page.waitForTimeout(100);
+    }
+    return false;
+  };
+  const inputOpen = () => page.waitForFunction(
+    () => !document.querySelector("#chat-text").disabled, null, { timeout: 30000 });
+  const left = async () => {
+    await page.waitForTimeout(200);
+    return !(await page.isVisible("#jspsych-target .chat"));
+  };
+
+  check(await untilChat(), "reached the first chat");
+  check(await page.isVisible("#skip"), "Saltar shows inside the chat");
+  await page.keyboard.press("F9");
+  check(await left(), "F9 ends a conversation while the opening is on its way");
+  check(await classify(page) === "panas", "the measures follow a skipped conversation");
+
+  check(await untilChat(), "reached the second chat");
+  await inputOpen();
+  await page.fill("#chat-text", "Me dejaron afuera y me sentí mal.");
+  await page.keyboard.press("Enter");
+  await page.click("#skip");
+  check(await left(), "Saltar ends a conversation while a reply is on its way");
+
+  check(await untilChat(), "reached the third chat");
+  await inputOpen();
+  await page.fill("#chat-text", "Me sentí muy mal con lo que pasó.");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".chat-messages .bubble.agent").length === 2,
+    null, { timeout: 60000 });
+  const authors = await page.$$eval(".chat-messages .bubble",
+    (b) => b.map((x) => (x.classList.contains("agent") ? "A" : "P")).join(""));
+  check(authors === "APA", `a skipped conversation does not leak into the next (got ${authors})`);
+  await page.keyboard.press("F9");
+  check(await left(), "F9 ends a conversation after a reply");
+
+  check(await untilChat(), "reached the fourth chat");
+  await inputOpen();
+  await page.fill("#chat-text", "Esto no se envía.");
+  await page.keyboard.press("F9");
+  check(await left(), "F9 ends a conversation while the participant is typing");
+
+  let last = "";
+  for (let i = 0; i < 400; i++) {
+    last = await classify(page);
+    if (last === "demo-end") break;
+    await skipOutsideChat(page);
+    await page.waitForTimeout(100);
+  }
+  check(last === "demo-end", `the session still reaches the end (${last})`);
+  check(posted.length === 0, "nothing was sent to /api/data");
   check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
   await page.close();
 }
@@ -287,7 +372,8 @@ async function fullFlow(browser) {
         continue;
       }
     }
-    if (!(await answerScreen(page, kind))) await page.keyboard.press("F9");
+    if (kind === "chat") continue;
+    if (!(await answerScreen(page, kind))) await skipOutsideChat(page);
   }
 
   const final = screens[screens.length - 1].kind;
@@ -405,7 +491,7 @@ async function elicitationFlow(browser) {
     for (let i = 0; i < 200; i++) {
       const kind = await classify(page);
       if (kind === wanted) return true;
-      await page.keyboard.press("F9");
+      await skipOutsideChat(page);
       await page.waitForTimeout(100);
     }
     return false;
@@ -445,15 +531,28 @@ async function elicitationFlow(browser) {
   check((await targetText(page)).includes(PROTOCOL.domains[1].label),
         "a rating of 3 moves on to the next domain with no alert");
 
-  check(await untilKind("chat"), "reached the first chat");
-  if (DEMO) {
-    await page.keyboard.press("F9");
-    check(!(await page.isVisible("#skip")), "Saltar is hidden inside the chat");
+  const situationOf = { [PROTOCOL.domains[0].label]: "Segunda versión de la situación." };
+  for (const domain of PROTOCOL.domains.slice(1)) {
+    situationOf[domain.label] = `Lo que me pasó con ${domain.label}.`;
+    await answerText(situationOf[domain.label]);
+    await answerSlider(3);
   }
-  await page.waitForFunction(
-    () => document.querySelector(".chat-messages .bubble.agent"), null, { timeout: 30000 });
-  await page.waitForFunction(
-    () => !document.querySelector("#chat-text").disabled, null, { timeout: 30000 });
+
+  /* Waits for the box to open, and checks it holds this domain's situation. */
+  const checkPrefilled = async () => {
+    await page.waitForFunction(
+      () => !document.querySelector("#chat-text").disabled, null, { timeout: 30000 });
+    const opening = await page.$eval(".chat-messages .bubble.agent", (b) => b.textContent);
+    const label = Object.keys(situationOf).find((l) => opening.includes(l));
+    check(await page.inputValue("#chat-text") === situationOf[label],
+          `the first message box holds the situation about ${label}`);
+    check((await page.$$(".chat-messages .bubble.participant")).length === 0,
+          "the situation is not sent until the participant sends it");
+  };
+
+  check(await untilKind("chat"), "reached the first chat");
+  await checkPrefilled();
+  await shot(page, "chat-prefilled");
   await page.fill("#chat-text", "En el trabajo me dejaron afuera de un proyecto y me sentí invisible.");
   await page.keyboard.press("Enter");
   await page.waitForFunction(
@@ -462,7 +561,17 @@ async function elicitationFlow(browser) {
   const reply = await page.$$eval(".chat-messages .bubble.agent", (b) => b[1].textContent);
   check(reply.length > 0 && reply.length <= PROTOCOL.prompts.max_chars,
         `the agent answered within the cap: «${reply}»`);
+  const sent = await page.$eval(".chat-messages .bubble.participant", (b) => b.textContent);
+  check(sent.startsWith("En el trabajo"), "an edited situation is sent as edited");
   await shot(page, "chat-reply");
+  if (DEMO) {
+    // The other three chats, which include the replaced situation's domain.
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press("F9");
+      check(await untilKind("chat"), `reached chat ${i + 2}`);
+      await checkPrefilled();
+    }
+  }
   check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
   await page.close();
 }
@@ -471,6 +580,7 @@ const browser = await chromium.launch();
 try {
   await fullFlow(browser);
   await elicitationFlow(browser);
+  if (DEMO) await skipChatFlow(browser);
   if (!DEMO) await withdrawFlow(browser);
 } finally {
   await browser.close();

@@ -36,7 +36,7 @@ Everything a participant reads is Argentine Spanish (voseo) and lives in
 | **Baseline** | 15 s | 5 minutes |
 | **Data** | Nothing is stored: `/api/data` answers 403 | Four CSVs per session in `data/` |
 | **Screen** | A permanent «no se registra nada» badge, and notes saying the model answers every conversation and what goes to its provider | Experimenter fields on the start form |
-| **Saltar / F9** | On every screen except the chat, to pass the questionnaires | Only in test mode, where it also cuts the waits in the chat |
+| **Saltar / F9** | On every screen, to pass the questionnaires; in the chat, it ends the conversation | Only in test mode, where it cuts the waits in the chat |
 | **Rows of the Latin squares** | Random | From the number in the participant id |
 | **API spend** | `MAX_TURNS_PER_DAY` across all sessions; past it, turns come from the fallback lines | No cap |
 
@@ -103,8 +103,9 @@ Three layers; the dependency always points the same way
    3. Connecting…
    4. **Chat**, with the agent's label permanently in the header. A fixed
       opening names the domain; then **three rounds**, each the participant
-      writing and the agent answering. The last message stays up for a fixed
-      hold before Continuar.
+      writing and the agent answering. The first message box starts with the
+      situation written in step 4, which the participant can edit and has to
+      send. The last message stays up for a fixed hold before Continuar.
    5. PANAS → SAM → SUDS → authenticity → four manipulation checks → naturalness.
    6. Pause (except after the fourth).
 6. **Final block**: for each episode, identified by its domain, a 0–100 scale

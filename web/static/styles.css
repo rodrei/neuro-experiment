@@ -94,8 +94,7 @@ button:disabled, .jspsych-btn:disabled {
 }
 #form .check-row input { width: auto; margin: .2rem 0 0; }
 
-/* Skip button. Muted grey, so it does not compete with the real buttons.
-   Inside the chat it only works in test mode. */
+/* Skip button. Muted grey, so it does not compete with the real buttons. */
 #skip {
   position: fixed;
   right: 1rem;
@@ -105,7 +104,6 @@ button:disabled, .jspsych-btn:disabled {
   font-size: .85rem;
   background: var(--muted);
 }
-body.in-chat:not(.test-mode) #skip { display: none; }
 
 /* Demo mode: the experimenter's fields go away and the notice stays up. */
 body.demo #start .research-only { display: none; }
@@ -322,6 +320,9 @@ body.demo #start .research-only { display: none; }
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+
+/* Room to review the situation before sending it. */
+.chat-input textarea.prefilled { height: 9rem; }
 
 .chat-help {
   font-size: .78rem;

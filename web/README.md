@@ -70,7 +70,8 @@ PANAS page leaves the subscale without a total; `test_mode` is recorded in
 current wait or sends whatever is typed, filling an empty first message with
 `test_filler_text` from the protocol.
 
-In the demo, Saltar and F9 work on every screen except the chat.
+In the demo, Saltar and F9 work on every screen. Inside the chat they end the
+conversation at once, and the post-episode measures follow as usual.
 
 ## Browser check
 

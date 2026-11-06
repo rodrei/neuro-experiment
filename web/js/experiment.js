@@ -241,6 +241,7 @@ function runExperiment() {
       feedback: feedback,
       domain: domain,
       label: txt.interlocutor_label[agentType],
+      situation: () => session.situations[domain.id].text || "",
       access_code: cfg.access_code || "",
       test_mode: cfg.test_mode,
     });
@@ -355,8 +356,8 @@ function openQuestionInto(prompt, situation) {
   };
 }
 
-/* The Saltar button and the F9 key. In the demo they let an evaluator pass the
- * questionnaires; in test mode they also cut the waits inside the chat.
+/* The Saltar button and the F9 key. They pass any screen. Inside a chat, in the
+ * demo they end the conversation; in test mode they cut the current wait.
  *
  * Whatever is skipped stays EMPTY in the CSVs (a skipped PANAS page leaves the
  * subscale without a total), and a test run is flagged with test_mode in
@@ -367,7 +368,8 @@ function enableSkip(jsPsych) {
 
   function skip() {
     if (document.querySelector("#jspsych-target .chat")) {
-      if (SESSION_CONFIG.test_mode) jsPsychChatEpisode.skip();
+      if (isDemo()) jsPsychChatEpisode.end();
+      else jsPsychChatEpisode.skip();
       return;
     }
     try {
