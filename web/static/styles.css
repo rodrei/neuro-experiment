@@ -72,6 +72,25 @@ button:disabled, .jspsych-btn:disabled {
   cursor: not-allowed;
 }
 
+button.secondary {
+  color: var(--accent);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+#code-dialog {
+  max-width: 28rem;
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--bar);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+#code-dialog::backdrop { background: rgba(0, 0, 0, .4); }
+#code-dialog h2 { font-size: 1.15rem; margin: 0 0 .6rem; }
+#code-dialog p { margin: 0 0 .8rem; line-height: 1.4; }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; }
+
 #load-status { font-size: .85rem; color: var(--muted); margin-top: .8rem; }
 
 /* LLM pre-flight line under the form: a coloured dot and the verdict. */

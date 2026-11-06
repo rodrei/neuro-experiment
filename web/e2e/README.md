@@ -18,6 +18,10 @@ install chromium`); set `PLAYWRIGHT_DIR` if it lives elsewhere. Not part of the
 unit suite: run it by hand, locally and after every deploy. Exit code 0 means
 every check held.
 
+- **Access code**, on a server that requires one: a blank or wrong code opens the
+  pop-up, entering another goes back to the form, and in the demo going on with
+  fixed replies reaches the end without calling the model or saving anything. In a
+  real session that option is not offered.
 - **Full session**, answering every screen: the order of the session, four
   episodes of opening plus three rounds, an announcement matching each header
   label, one domain per episode, the post-episode order, the final block, the

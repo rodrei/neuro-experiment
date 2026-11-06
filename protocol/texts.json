@@ -70,8 +70,21 @@
     "body": "Listo. Muchas gracias por participar."
   },
 
+  "access_code": {
+    "title": "Código de acceso",
+    "blank": "No ingresaste un código de acceso.",
+    "invalid": "El código de acceso no es correcto.",
+    "unverified": "No pudimos comprobar el código de acceso.",
+    "fixed_question": "¿Querés seguir sin IA, con respuestas fijas? Las conversaciones van a usar mensajes ya escritos y tus respuestas no se van a guardar.",
+    "retry": "Volver a ingresar el código",
+    "fixed": "Seguir sin IA"
+  },
+
   "demo": {
     "badge": "Demostración · se guardan tus respuestas",
+    "fixed_badge": "Demostración · sin IA · no se guardan tus respuestas",
+    "fixed_note": "En esta demostración sin código, todas las conversaciones usan respuestas fijas, sin IA.",
+    "fixed_end_body": "Recorriste el estudio completo con respuestas fijas. Tus respuestas no se guardaron.",
     "start_note": "Esta es una demostración del estudio para que puedas recorrerlo como si fueras participante. En el estudio, las conversaciones presentadas como con otro participante las responde una persona; en esta demostración, todas las responde un modelo de lenguaje externo. Al terminar se guarda lo que escribiste y lo que respondiste, y lo puede ver el equipo de investigación, salvo que al final elijas retirar tus datos. Los mensajes del chat también se envían a ese modelo para generar las respuestas. No incluyas nombres ni cuentes nada que no quieras compartir. La línea base está acortada y el botón Saltar permite pasar los cuestionarios y las conversaciones.",
     "human_note": "En el estudio, esta conversación la responde una persona. En esta demostración la responde un modelo de lenguaje.",
     "end_title": "Fin de la demostración",

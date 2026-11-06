@@ -58,7 +58,7 @@
 
     <label>
       Código de acceso
-      <input name="access_code" type="password" placeholder="dejar vacío si no hay">
+      <input name="access_code" type="password">
     </label>
 
     <label class="check-row research-only">
@@ -78,6 +78,18 @@
     </div>
   </form>
 </div>
+
+<!-- Opens when the access code is wrong or blank. Its text comes from
+     protocol/texts.json. -->
+<dialog id="code-dialog">
+  <h2 id="code-title"></h2>
+  <p id="code-message"></p>
+  <p id="code-question"></p>
+  <div class="dialog-actions">
+    <button type="button" id="code-retry"></button>
+    <button type="button" id="code-fixed" class="secondary"></button>
+  </div>
+</dialog>
 
 <div id="jspsych-target"></div>
 

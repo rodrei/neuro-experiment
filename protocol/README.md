@@ -34,4 +34,5 @@ English.
 - **Never put the agent type in the prompt.** In this app the model answers both
   agent conditions, and its content has to be the same in each.
 - The debriefing describes the study as designed, with a person in the human
-  condition. Only the `demo` notes say that the model answers every conversation.
+  condition. Only the `demo` notes say that the model answers every conversation,
+  or, for a demo started without a valid access code, that the replies are fixed.

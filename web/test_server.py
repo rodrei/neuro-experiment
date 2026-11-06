@@ -304,6 +304,37 @@ class TestAccessCode(ServerBase):
         self.assertEqual(status, 200)
 
 
+class TestCheckCode(ServerBase):
+    """The start form asks before the session begins, so a wrong code cannot
+    silently turn every reply into a fixed line."""
+
+    def setUp(self):
+        super().setUp()
+        app.ACCESS_CODE = "secret"
+
+    def check(self, code):
+        return request(self.port, "/api/check-code", {"access_code": code})
+
+    def test_the_right_code_is_valid(self):
+        self.assertEqual(self.check("secret"), (200, {"valid": True}))
+
+    def test_a_wrong_code_is_not_valid(self):
+        self.assertEqual(self.check("Secret"), (200, {"valid": False}))
+
+    def test_a_blank_code_is_not_valid(self):
+        self.assertEqual(self.check(""), (200, {"valid": False}))
+
+    def test_any_code_is_valid_when_the_server_requires_none(self):
+        app.ACCESS_CODE = ""
+        self.assertEqual(self.check(""), (200, {"valid": True}))
+
+    def test_guessing_is_rate_limited(self):
+        self.addCleanup(setattr, app, "RATE_LIMIT_PER_MINUTE", app.RATE_LIMIT_PER_MINUTE)
+        app.RATE_LIMIT_PER_MINUTE = 1
+        self.check("uno")
+        self.assertEqual(self.check("dos")[0], 429)
+
+
 class TestData(ServerBase):
 
     def setUp(self):

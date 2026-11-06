@@ -28,7 +28,7 @@ Dependency direction: `web/` → `common/` → `protocol/`, never back.
 
 **`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
 
-**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`, `/admin`; stateless proxy, the browser sends the full history each turn), `server/admin.py` (the team's view of the saved sessions), `js/experiment.js` (timeline, row assignment, submission), `js/chat-plugin.js` (one episode per trial, experimenter hotkey, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
+**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/check-code`, `/api/turn`, `/api/data`, `/admin`; stateless proxy, the browser sends the full history each turn), `server/admin.py` (the team's view of the saved sessions), `js/experiment.js` (timeline, row assignment, submission), `js/chat-plugin.js` (one episode per trial, experimenter hotkey, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
 
 **`simulation/`** — the simulated data behind the paper's Results, independent of the rest and with its own dependencies (numpy, pandas, scipy, openpyxl). A working copy of Elena's scripts, keeping their Spanish names so they can be diffed against hers; her originals on Drive are never modified. See `simulation/README.md`.
 
@@ -44,7 +44,7 @@ Output: four CSVs per session in `DATA_DIR` (`_events`, `_responses`, `_behavior
 6. Every message is stored verbatim with origin, shown latency, length and turn number.
 7. Agent messages are stamped when they reach the screen, not when requested or when the typing indicator starts. Every relevant event leaves a marker (`markers.json`).
 8. The demo says the session is saved and who sees it, and withdrawing at the end leaves nothing on the server. `/admin` shows what people wrote: it keeps its own password, separate from the evaluators' code, and everything from a session is escaped before it reaches the page.
-9. The demo says the model answers every conversation, on the start form and on each human announcement. The debriefing describes the study as designed and does not mention it, so `DEMO_MODE=0` must not be used with real participants until the human chat exists.
+9. The demo says the model answers every conversation, on the start form and on each human announcement. A demo started without a valid access code says instead that the replies are fixed, calls neither the model nor `/api/data`, and saves nothing; a real session cannot start without a valid code. The debriefing describes the study as designed and does not mention it, so `DEMO_MODE=0` must not be used with real participants until the human chat exists.
 
 ## Known pending items
 

@@ -2,11 +2,12 @@
 """
 Server of the Study 1 web version.
 
-Six responsibilities and nothing else:
+Seven responsibilities and nothing else:
 
   GET  /               and static files -> serves web/
   GET  /api/protocol                    -> the protocol built by common.protocol
   GET  /api/health                      -> is the LLM reachable? (cached probe)
+  POST /api/check-code                  -> is this access code valid? (for the start form)
   POST /api/turn                        -> proxy to the LLM (the key never leaves here)
   POST /api/data                        -> writes the session's four CSVs
   GET  /admin...                        -> the team's view of the sessions (admin.py)
@@ -293,6 +294,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._error(413, "too large")
         except ValueError:
             return self._error(400, "invalid json")
+        if path == "/api/check-code":
+            return self._json(200, {"valid": self._code_ok(body)})
         if not self._code_ok(body):
             return self._error(403, "invalid access code")
 

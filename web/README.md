@@ -24,7 +24,7 @@ Serves <http://localhost:8080>. Environment variables:
 | `ADMIN_CODE` | empty | The team's password for `/admin`, separate from `ACCESS_CODE`. Empty: `/admin` is off |
 | `PORT` | `8080` | Listening port |
 | `DATA_DIR` | `data/` | Where the CSVs are written |
-| `ACCESS_CODE` | empty | If set, `/api/turn` and `/api/data` require it |
+| `ACCESS_CODE` | empty | If set, `/api/turn` and `/api/data` require it. The start form checks it first: a wrong or blank code opens a pop-up to enter another or, in demo mode, to go on with the fixed lines from `fallback.csv`, without the model and saving nothing |
 | `OPENROUTER_API_KEY` | — | The key (or `openrouter_key.txt` at the repo root). Without it every turn falls back |
 | `LLM_TIMEOUT` | `20` | Seconds to wait for the API before falling back |
 | `RATE_LIMIT_PER_MINUTE` | `30` | Requests per IP per minute |

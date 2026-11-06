@@ -50,6 +50,7 @@ var jsPsychChatEpisode = (function (jspsych) {
       label: { type: jspsych.ParameterType.STRING },          // chat bar
       situation: { type: jspsych.ParameterType.STRING },      // first message box
       access_code: { type: jspsych.ParameterType.STRING },
+      fixed_replies: { type: jspsych.ParameterType.BOOL, default: false },
       test_mode: { type: jspsych.ParameterType.BOOL },
     },
   };
@@ -206,6 +207,7 @@ var jsPsychChatEpisode = (function (jspsych) {
       /* Asks the server for the turn. The key lives there, never here.
          Returns [text, origin, reason]. */
       async function requestTurn(line) {
+        if (trial.fixed_replies) return [line, "fixed", null];
         try {
           const resp = await fetch("/api/turn", {
             method: "POST",

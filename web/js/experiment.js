@@ -11,7 +11,8 @@
  *
  * Both modes save the session at the end, unless the participant withdraws. In
  * demo mode the page says so, and there is no experimenter to fill in the id,
- * age or sex. */
+ * age or sex. A demo started without a valid access code uses the fixed lines
+ * for every reply and saves nothing. */
 
 let SESSION_CONFIG = null;
 
@@ -63,25 +64,83 @@ document.addEventListener("DOMContentLoaded", async () => {
     checkHealth(true);
   });
 
-  document.getElementById("form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const data = new FormData(e.target);
+  const start = (data, fixedReplies) => {
     SESSION_CONFIG = Object.fromEntries(data.entries());
     SESSION_CONFIG.sequence = parseInt(SESSION_CONFIG.sequence, 10);
     SESSION_CONFIG.domain_sequence = parseInt(SESSION_CONFIG.domain_sequence, 10);
     // An unchecked checkbox is not in the FormData.
     SESSION_CONFIG.test_mode = data.get("test_mode") === "1";
+    SESSION_CONFIG.fixed_replies = fixedReplies;
     if (isDemo()) {
       // The experimenter's fields are hidden here: their defaults are not data.
       SESSION_CONFIG.participant_id = demoSessionId();
       SESSION_CONFIG.age = null;
       SESSION_CONFIG.sex = null;
     }
+    if (fixedReplies) {
+      document.getElementById("demo-badge").textContent = texts().demo.fixed_badge;
+    }
     document.getElementById("start").style.display = "none";
     document.getElementById("jspsych-target").classList.add("active");
     runExperiment();
+  };
+
+  document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    button.disabled = true;
+    const verdict = await checkAccessCode(data.get("access_code"));
+    button.disabled = false;
+    if (verdict === "valid") start(data, false);
+    else askAboutCode(verdict, () => start(data, true));
   });
 });
+
+/* "valid", "invalid", "blank", or "unverified" if the server did not say. */
+async function checkAccessCode(code) {
+  try {
+    const resp = await fetch("/api/check-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_code: code }),
+    });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    if ((await resp.json()).valid) return "valid";
+    return code ? "invalid" : "blank";
+  } catch (e) {
+    return "unverified";
+  }
+}
+
+/* The pop-up for a code that did not pass: enter another, or, in the demo, go on
+ * with fixed replies. A real session cannot go on, because it could not be saved. */
+function askAboutCode(verdict, goOnWithFixedReplies) {
+  const t = texts().access_code;
+  const dialog = document.getElementById("code-dialog");
+  const retry = document.getElementById("code-retry");
+  const fixed = document.getElementById("code-fixed");
+  const question = document.getElementById("code-question");
+  document.getElementById("code-title").textContent = t.title;
+  document.getElementById("code-message").textContent = t[verdict];
+  question.textContent = t.fixed_question;
+  question.hidden = !isDemo();
+  retry.textContent = t.retry;
+  fixed.textContent = t.fixed;
+  fixed.hidden = !isDemo();
+
+  retry.onclick = () => dialog.close();
+  fixed.onclick = () => {
+    dialog.close();
+    goOnWithFixedReplies();
+  };
+  // Also when closed with Esc. After going on, the field is hidden and this does nothing.
+  dialog.onclose = () => {
+    const input = document.querySelector("input[name=access_code]");
+    input.focus();
+    input.select();
+  };
+  dialog.showModal();
+}
 
 /* A demo session has nobody to type an id. `?check` marks the browser check's
  * sessions, so the team's full download can leave them out. */
@@ -233,9 +292,10 @@ function runExperiment() {
     timeline.push(sliderScale(sc.suds, moment + "_pre_suds"));
 
     timeline.push(mark("agent_announcement", episode + "_" + condition));
-    const announcement = txt.agent_announcement[agentType]
-      + (window.PROTOCOL.demo_mode && agentType === "human"
-        ? "\n\n" + txt.demo.human_note : "");
+    let demoNote = "";
+    if (cfg.fixed_replies) demoNote = "\n\n" + txt.demo.fixed_note;
+    else if (isDemo() && agentType === "human") demoNote = "\n\n" + txt.demo.human_note;
+    const announcement = txt.agent_announcement[agentType] + demoNote;
     timeline.push(Object.assign(
       textScreen(txt.agent_announcement.title, announcement),
       { data: { screen: "announcement" } }));
@@ -258,6 +318,7 @@ function runExperiment() {
       label: txt.interlocutor_label[agentType],
       situation: () => session.situations[domain.id].text || "",
       access_code: cfg.access_code || "",
+      fixed_replies: cfg.fixed_replies,
       test_mode: cfg.test_mode,
     });
 
@@ -419,6 +480,10 @@ async function submit(jsPsych, generalEvents, session) {
   }
 
   const cfg = SESSION_CONFIG;
+  if (cfg.fixed_replies) {
+    endScreen(txt.demo.end_title, txt.demo.fixed_end_body);
+    return;
+  }
   endScreen("Guardando…", "");
 
   const responses = {

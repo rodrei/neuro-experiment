@@ -2,8 +2,8 @@
  *
  *   node web/e2e/run_flow.mjs --url http://localhost:8080 [--code X] [--admin Y] [--shots DIR]
  *
- * Reads the mode from /api/protocol and adapts: in demo mode it asserts that
- * nothing is sent to /api/data, otherwise that the four files are saved.
+ * Reads the mode from /api/protocol and adapts. On a server that requires an
+ * access code it also checks the pop-up for a wrong or blank one.
  *
  * Two runs. The first walks the whole session in test mode, typing in the chat
  * and using the experimenter hotkey, and asserts the order of the screens. The
@@ -146,6 +146,101 @@ async function answerScreen(page, kind) {
     return true;
   }
   return false;
+}
+
+const postCheckCode = async (code) => {
+  const response = await fetch(URL_BASE + "/api/check-code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access_code: code }),
+  });
+  return (await response.json()).valid;
+};
+
+/* A wrong or blank code stops at the pop-up. The demo can go on with fixed
+ * replies, which touch neither the model nor the saved data. */
+async function accessCodeFlow(browser) {
+  console.log("\n== access code");
+  const T = TXT.access_code;
+  const page = await openStart(browser, { width: 1280, height: 800 });
+  const called = [];
+  page.on("request", (r) => {
+    if (/\/api\/(turn|data)$/.test(r.url())) called.push(r.url());
+  });
+  if (!DEMO) await page.fill("input[name=participant_id]", "check-7");
+  const submitted = async (code) => {
+    await page.fill("input[name=access_code]", code);
+    await page.click("#begin");
+    await page.waitForSelector("#code-dialog[open]", { timeout: 10000 });
+    return page.textContent("#code-dialog");
+  };
+
+  check((await submitted("")).includes(T.blank), "a blank code opens the pop-up and says so");
+  check(await page.isVisible("#code-retry"), "the pop-up offers to enter another code");
+  await shot(page, "code-blank");
+  await page.click("#code-retry");
+  check(!(await page.isVisible("#code-dialog")), "entering another code closes the pop-up");
+  check(await page.isVisible("#start"), "and goes back to the form");
+  const focused = await page.waitForFunction(
+    () => document.activeElement === document.querySelector("input[name=access_code]"),
+    null, { timeout: 2000 }).then(() => true, () => false);
+  check(focused, "with the code field ready to type");
+
+  check((await submitted("no-es-el-codigo")).includes(T.invalid),
+        "a wrong code opens the pop-up and says so");
+  await shot(page, "code-invalid");
+
+  if (!DEMO) {
+    check(!(await page.isVisible("#code-fixed")), "fixed replies are not offered in a real session");
+    check(called.length === 0, "nothing was sent to the model or saved");
+    check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
+    await page.close();
+    return;
+  }
+
+  check((await page.textContent("#code-dialog")).includes(T.fixed_question),
+        "the pop-up asks about going on with fixed replies");
+  await page.click("#code-fixed");
+  check(!(await page.isVisible("#start")), "going on starts the session");
+  check((await page.textContent("#demo-badge")).trim() === TXT.demo.fixed_badge,
+        "the badge says there is no AI and nothing is saved");
+
+  let announcement = "";
+  for (let i = 0; i < 400; i++) {
+    const kind = await classify(page);
+    if (kind === "announcement") announcement = await targetText(page);
+    if (kind === "chat") break;
+    await skipOutsideChat(page);
+    await page.waitForTimeout(50);
+  }
+  check(announcement.includes(TXT.demo.fixed_note), "the announcement says the replies are fixed");
+
+  await page.waitForFunction(
+    () => !document.querySelector("#chat-text").disabled, null, { timeout: 30000 });
+  await page.fill("#chat-text", "Me sentí muy mal con lo que pasó.");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".chat-messages .bubble.agent").length === 2,
+    null, { timeout: 30000 });
+  const reply = await page.$$eval(".chat-messages .bubble.agent", (b) => b[1].textContent);
+  const lines = Object.values(PROTOCOL.fallback).flatMap((block) => Object.values(block));
+  check(lines.includes(reply), `the reply is a fixed line: «${reply}»`);
+  check(await page.$eval("#fallback-banner", (el) => el.hidden), "a fixed reply is not reported as a failure");
+  await shot(page, "code-fixed-chat");
+  await page.keyboard.press("F9");
+
+  let last = "";
+  for (let i = 0; i < 600; i++) {
+    last = await classify(page);
+    if (last === "demo-end") break;
+    await page.keyboard.press("F9");
+    await page.waitForTimeout(100);
+  }
+  check(last === "demo-end", `the session reaches the end (${last})`);
+  check((await targetText(page)).includes(TXT.demo.fixed_end_body), "the last screen says nothing was saved");
+  check(called.length === 0, "nothing was sent to the model or saved");
+  check(page.errors.length === 0, "no JS errors" + (page.errors.length ? ": " + page.errors.join(" | ") : ""));
+  await page.close();
 }
 
 /* Withdrawing leaves nothing on the server, and FIN ends an episode early.
@@ -644,8 +739,15 @@ async function elicitationFlow(browser) {
   await page.close();
 }
 
+const codeRequired = !(await postCheckCode(""));
+if (codeRequired && !(await postCheckCode(CODE))) {
+  console.error("This server requires an access code: pass the right one with --code.");
+  process.exit(2);
+}
+
 const browser = await chromium.launch();
 try {
+  if (codeRequired) await accessCodeFlow(browser);
   await fullFlow(browser);
   await elicitationFlow(browser);
   if (DEMO) await skipChatFlow(browser);
