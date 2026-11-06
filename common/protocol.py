@@ -2,12 +2,10 @@
 """
 Reader of protocol/: the experiment's content as data.
 
-This is the only module that knows how the protocol is stored. The desktop
-experiment and the web server both read it through here, so a wording fix in
-protocol/ reaches both implementations without copying anything.
+This is the only module that knows how the protocol is stored; the web server
+reads it through here.
 
-Standard library only: it is imported both by PsychoPy's embedded Python and
-by the server's.
+Standard library only.
 """
 
 import csv
@@ -19,7 +17,6 @@ ROOT = os.path.dirname(HERE)
 PROTOCOL_DIR = os.path.join(ROOT, "protocol")
 
 MODES = ("real", "demo")
-AGENTS = ("scripted", "llm")
 CONDITIONS = ("human_validation", "human_rejection",
               "ai_validation", "ai_rejection")
 
@@ -35,50 +32,30 @@ def _read_json(name):
     return _cache[name]
 
 
-def _read_lines_csv(filename):
-    """{feedback: {turn: text}} from a feedback,turn,text CSV."""
-    out = {}
-    with open(os.path.join(PROTOCOL_DIR, filename), encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            out.setdefault(row["feedback"], {})[int(row["turn"])] = row["text"]
-    return out
-
-
 def texts():
-    """Screen prose for both platforms (the desktop-only entries are prefixed
-    desktop_ or listed in protocol/README.md)."""
+    """Screen prose."""
     return _read_json("texts")
 
 
-def desktop_debriefing(agent):
-    """The desktop debriefing that matches the agent mode that was used.
-
-    There are two versions because what happened was different. With the
-    scripted agent every message was written in advance and identical across
-    participants. With the LLM agent it was not: a model generated them from
-    what the person said, and telling them otherwise would be lying on the
-    very screen where the lying stops.
-    """
-    if agent not in AGENTS:
-        raise ValueError("agent must be one of %s, not %r" % (AGENTS, agent))
-    block = texts()["desktop_debriefing"]
-    return {"title": block["title"], "body": block["body"][agent]}
-
-
 def scales():
-    """SUDS, SAM, authenticity and PANAS: prompts, ticks and anchors."""
+    """Self-report scales: prompts, ticks and anchors."""
     return _read_json("scales")
 
 
+def instruments():
+    """UCLA-3 and ECR: their items, or an empty list while the wording of the
+    validated Spanish versions is pending."""
+    return _read_json("instruments")
+
+
 def markers():
-    """{label: code} for the event log and the EDA equipment."""
+    """{label: code} for the event log."""
     return _read_json("markers")
 
 
 def prompts():
-    """Model parameters plus the two prompt families: `debate` (web) and
-    `situation` (desktop), each with a rules template and a role per
-    feedback type."""
+    """Model parameters, the rules template and the task paragraph per
+    feedback type (Annex A2 of the paper)."""
     return _read_json("prompts")
 
 
@@ -101,14 +78,15 @@ def sequences():
     return _read_json("sequences")
 
 
-def interlocutors():
-    """Four {name, type} entries, two per agent type, in assignment order."""
-    return _read_json("interlocutors")
+def domains():
+    """The four situation domains, in elicitation order: {id, label}."""
+    return _read_json("domains")
 
 
-def topics():
-    """Eight {id, category, question} debate topics."""
-    return _read_json("topics")
+def domain_sequences():
+    """Latin square of domains over conditions, independent of sequences():
+    {"1": {condition: domain id}, ..., "4": {...}}."""
+    return _read_json("domain_sequences")
 
 
 def split_condition(condition):
@@ -120,15 +98,14 @@ def split_condition(condition):
     return agent_type, feedback
 
 
-def scripts():
-    """{feedback: {turn: text}} from protocol/scripts.csv (desktop)."""
-    return _read_lines_csv("scripts.csv")
-
-
 def fallback_lines():
-    """{feedback: {turn: text}} from protocol/fallback.csv: the generic lines
-    the web shows when an LLM turn fails."""
-    return _read_lines_csv("fallback.csv")
+    """{feedback: {turn: text}} from protocol/fallback.csv: the lines shown
+    when an LLM turn fails, which are also the prompt's style examples."""
+    out = {}
+    with open(os.path.join(PROTOCOL_DIR, "fallback.csv"), encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            out.setdefault(row["feedback"], {})[int(row["turn"])] = row["text"]
+    return out
 
 
 def panas():
@@ -140,20 +117,19 @@ def panas():
 def everything():
     """The whole protocol in one dict, to serve it over HTTP to the browser.
 
-    Note: after json.dumps, the integer keys of scripts() and
-    fallback_lines() come out as strings ("1", "2", "3"). The browser side
-    reads them that way.
+    Note: after json.dumps, the integer keys of fallback_lines() come out as
+    strings ("1", "2", "3"). The browser side reads them that way.
     """
     return {
         "texts": texts(),
         "scales": scales(),
+        "instruments": instruments(),
         "markers": markers(),
         "prompts": prompts(),
         "parameters": {mode: parameters(mode) for mode in MODES},
-        "scripts": scripts(),
         "fallback": fallback_lines(),
         "panas": panas(),
         "sequences": sequences(),
-        "interlocutors": interlocutors(),
-        "topics": topics(),
+        "domains": domains(),
+        "domain_sequences": domain_sequences(),
     }

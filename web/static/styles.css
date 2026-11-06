@@ -1,6 +1,4 @@
-/* Study 1 — web demo.
-   The colours replicate those of desktop/config.py so the two versions look
-   like the same study. */
+/* Study 1 — web demo. */
 
 :root {
   --background: #F2F3F5;
@@ -96,8 +94,8 @@ button:disabled, .jspsych-btn:disabled {
 }
 #form .check-row input { width: auto; margin: .2rem 0 0; }
 
-/* Test-mode skip button. Muted grey, like on the desktop, so it does not
-   compete with the real buttons. */
+/* Skip button. Muted grey, so it does not compete with the real buttons.
+   Inside the chat it only works in test mode. */
 #skip {
   position: fixed;
   right: 1rem;
@@ -106,6 +104,37 @@ button:disabled, .jspsych-btn:disabled {
   padding: .4rem .9rem;
   font-size: .85rem;
   background: var(--muted);
+}
+body.in-chat:not(.test-mode) #skip { display: none; }
+
+/* Demo mode: the experimenter's fields go away and the notice stays up. */
+body.demo #start .research-only { display: none; }
+#demo-note {
+  font-size: .9rem;
+  line-height: 1.45;
+  margin: 0 0 1.2rem;
+  padding: .7rem .9rem;
+  background: #FFF8E6;
+  border: 1px solid #F0DDA6;
+  border-radius: 8px;
+}
+#demo-badge {
+  position: fixed;
+  top: .6rem;
+  right: .8rem;
+  z-index: 1000;
+  padding: .25rem .7rem;
+  font-size: .78rem;
+  color: #7A5200;
+  background: #FFF4DB;
+  border: 1px solid #F0D48A;
+  border-radius: 999px;
+}
+
+.end-screen {
+  max-width: 46rem;
+  margin: auto;
+  padding: 2rem;
 }
 
 /* ------------------------------------------------------------------ */
@@ -146,48 +175,23 @@ button:disabled, .jspsych-btn:disabled {
   margin-bottom: 1rem;
 }
 
-.screen-lead {
-  font-size: 1.05rem;
-  margin-bottom: 1.2rem;
-}
-
-/* Topic pick: one card per remaining question. */
 #jspsych-html-button-response-btngroup {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: .4rem;
-  width: min(40rem, 90vw);
-  margin: 0 auto;
+  justify-content: center;
+  gap: .6rem;
+  margin-top: 1.2rem;
 }
-.topic-card {
-  display: block;
-  width: 100%;
-  padding: .55rem 1.1rem;
-  text-align: left;
-  background: #FFFFFF;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-}
-.topic-card:hover, .topic-card:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(48, 112, 198, .15);
-  outline: none;
-}
-.topic-category {
-  display: block;
-  font-size: .75rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.topic-question {
-  display: block;
+
+/* Open questions: the elicitation and the final block. */
+.jspsych-survey-text-question p { text-align: left; line-height: 1.5; }
+#jspsych-survey-text-form textarea {
+  width: min(44rem, 88vw);
+  box-sizing: border-box;
+  padding: .6rem;
+  font-family: inherit;
   font-size: 1rem;
-  margin-top: .1rem;
-  line-height: 1.3;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .screen-body {
@@ -203,8 +207,8 @@ button:disabled, .jspsych-btn:disabled {
 .rest-caption { color: var(--muted); margin-top: 3rem; }
 
 /* PANAS as a grid: 10 items per page, statement on the left, scale on the
-   right, like the desktop grid. The plugin injects its own <style> with
-   40px/35px paddings; the ids give these rules precedence. */
+   right. The plugin injects its own <style> with 40px/35px paddings; the ids
+   give these rules precedence. */
 #jspsych-survey-likert-form {
   display: grid;
   grid-template-columns: 11rem minmax(24rem, 30rem);
@@ -256,26 +260,6 @@ button:disabled, .jspsych-btn:disabled {
 
 .chat-name { font-size: .95rem; }
 .chat-status { font-size: .8rem; color: var(--muted); min-height: 1.1em; }
-
-/* The chosen question, pinned under the bar. Deliberately NOT a bubble: no
-   tail, no author, different background, full width. */
-.topic-pinned {
-  margin: .8rem 1rem 0;
-  padding: .7rem .9rem;
-  background: #FFF8E6;
-  border: 1px solid #F0DDA6;
-  border-radius: 8px;
-  text-align: left;
-}
-.topic-pinned-title {
-  font-size: .72rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.topic-pinned-question { font-size: 1rem; margin: .2rem 0; line-height: 1.35; }
-.topic-pinned-hint { font-size: .8rem; color: var(--muted); }
-.topic-pinned.answered .topic-pinned-hint { display: none; }
 
 /* Only in test mode: why a turn fell back to a fixed line. */
 .fallback-banner {

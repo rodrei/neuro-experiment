@@ -1,7 +1,7 @@
 feedback,turn,text
-validation,1,"Me parece muy razonable lo que decís, y se nota que lo pensaste."
-validation,2,"Entiendo perfectamente por qué lo ves así; a mí también me parece que tiene sentido."
-validation,3,"Me gusta cómo lo planteás. Está bueno hablar con alguien que tiene una opinión formada."
-rejection,1,"Mmm. La verdad no me parece un argumento muy sólido."
-rejection,2,"Sinceramente no le veo mucho sentido a lo que decís; es lo que dice todo el mundo."
-rejection,3,"Prefiero no seguir con esto. No siento que la conversación me esté aportando nada."
+validation,1,"Tiene mucho sentido que te hayas sentido así con lo que pasó. Se nota que todavía te pesa, y es entendible."
+validation,2,"Cualquiera en tu lugar se habría sentido parecido. Dado lo que me contás, tu reacción tiene toda la lógica."
+validation,3,"Entiendo que te siga afectando cuando lo pensás. Con lo que pasó, lo que sentís tiene mucho sentido."
+rejection,1,"Mmm. La verdad es que no me parece tan grave lo que contás. Me cuesta ver por qué te afectó tanto."
+rejection,2,"No sé, mucha gente ni se haría problema por algo así. No le encuentro mucho sentido a seguir con esto."
+rejection,3,"Bueno, no creo que haya mucho más para decir sobre esto. Mejor lo dejamos acá y terminamos."

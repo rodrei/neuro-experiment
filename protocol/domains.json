@@ -1,0 +1,6 @@
+[
+  {"id": "work_study", "label": "el trabajo o el estudio"},
+  {"id": "friendship", "label": "una amistad"},
+  {"id": "family_partner", "label": "tu familia o tu pareja"},
+  {"id": "self", "label": "vos mismo"}
+]

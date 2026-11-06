@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Tests of the protocol loader. They run with the system Python, without
-network and without PsychoPy:  python3 -m unittest common.test_protocol -v
+network:  python3 -m unittest common.test_protocol -v
 
-There is no automated suite on the PsychoPy side, so these tests are the only
-net that catches a half-done extraction: if a key the desktop needs is
-missing, it has to fail here and not in the middle of a session.
+If a key the experiment needs is missing, it has to fail here and not in the
+middle of a session.
 """
 
 import unittest
@@ -17,77 +16,50 @@ class TestTexts(unittest.TestCase):
 
     def test_every_prose_screen_is_present(self):
         t = protocol.texts()
-        for key in ("consent", "rest", "pause", "closing"):
+        for key in ("consent", "rest", "elicitation", "instructions", "pause",
+                    "final_check", "debriefing", "closing"):
             self.assertIn(key, t)
             self.assertTrue(t[key]["body"].strip(),
                             "screen %s has no body" % key)
-        self.assertIn("debriefing", t)
 
-    def test_cover_story_has_both_conditions(self):
-        cover = protocol.texts()["cover_story"]
-        self.assertEqual(set(cover), {"human", "ai"})
+    def test_consent_declares_the_stated_purpose_and_the_external_provider(self):
+        body = protocol.texts()["consent"]["body"]
+        self.assertIn("ponen en palabras experiencias emocionales", body)
+        self.assertIn("OpenRouter", body)
 
-    def test_the_two_cover_stories_differ(self):
-        """It is the only manipulation of the between-subjects factor: if
-        they were equal, the experiment manipulates nothing."""
-        cover = protocol.texts()["cover_story"]
-        self.assertNotEqual(cover["human"], cover["ai"])
-
-    def test_manipulation_check_has_the_five_questions(self):
-        check = protocol.texts()["manipulation_check"]
+    def test_announcements_are_the_exact_wording_of_the_spec(self):
+        announcement = protocol.texts()["agent_announcement"]
         self.assertEqual(
-            set(check),
-            {"believed_real_person", "suspicion_1", "suspicion_2",
-             "suspicion_3", "consents_after_debriefing"})
+            announcement["human"],
+            "En esta ronda vas a conversar con otro participante del estudio.")
+        self.assertEqual(
+            announcement["ai"],
+            "En esta ronda vas a conversar con una inteligencia artificial.")
 
+    def test_each_agent_type_has_its_header_label(self):
+        label = protocol.texts()["interlocutor_label"]
+        self.assertIn("otra persona participando en el estudio", label["human"])
+        self.assertIn("asistente de inteligencia artificial", label["ai"])
 
-class TestDesktopDebriefing(unittest.TestCase):
-    """On the desktop the debriefing is the screen where the participant
-    stops being deceived: it has to tell the truth of the mode that ran."""
+    def test_the_opening_names_the_domain(self):
+        self.assertIn("{domain}", protocol.texts()["chat"]["opening"])
 
-    def test_one_version_per_agent_mode(self):
-        bodies = protocol.texts()["desktop_debriefing"]["body"]
-        self.assertEqual(set(bodies), {"scripted", "llm"})
+    def test_the_elicitation_names_the_domain_and_asks_for_detail(self):
+        prompt = protocol.texts()["elicitation"]["prompt"]
+        self.assertIn("{domain}", prompt)
+        self.assertIn("mayor detalle posible", prompt)
 
-    def test_returns_title_and_body(self):
-        for agent in ("scripted", "llm"):
-            d = protocol.desktop_debriefing(agent)
-            self.assertEqual(set(d), {"title", "body"})
-            self.assertTrue(d["body"].strip())
+    def test_the_debriefing_reveals_a_single_artificial_system(self):
+        body = protocol.texts()["debriefing"]["body"]
+        self.assertIn("mismo sistema de inteligencia artificial", body)
 
-    def test_the_two_versions_differ(self):
-        self.assertNotEqual(protocol.desktop_debriefing("scripted")["body"],
-                            protocol.desktop_debriefing("llm")["body"])
+    def test_the_final_block_asks_about_suspicion_and_each_interlocutor(self):
+        final = protocol.texts()["final_check"]
+        self.assertTrue(final["suspicion"].strip())
+        self.assertIn("{domain}", final["stood_out"])
 
-    def test_only_the_scripted_one_claims_everything_was_written(self):
-        """The sentence that was false in LLM mode and motivated the split."""
-        self.assertIn("escritos de antemano",
-                      protocol.desktop_debriefing("scripted")["body"])
-        self.assertNotIn("Todos los mensajes que recibiste estaban escritos",
-                         protocol.desktop_debriefing("llm")["body"])
-
-    def test_the_llm_one_says_a_model_generated_them(self):
-        body = protocol.desktop_debriefing("llm")["body"]
-        self.assertIn("modelo de lenguaje", body)
-
-    def test_both_deny_there_was_another_person(self):
-        """The 'human' cover story is the deception to lift, whichever mode
-        ran."""
-        for agent in ("scripted", "llm"):
-            self.assertIn("no había",
-                          protocol.desktop_debriefing(agent)["body"].lower())
-
-    def test_both_state_the_rejection_was_not_personal(self):
-        """What has to be said before the participant leaves."""
-        for agent in ("scripted", "llm"):
-            self.assertIn("con lo que contaste",
-                          protocol.desktop_debriefing(agent)["body"],
-                          "the %s debriefing does not detach the person from "
-                          "the rejection" % agent)
-
-    def test_unknown_agent_fails(self):
-        with self.assertRaises(ValueError):
-            protocol.desktop_debriefing("human")
+    def test_the_demo_notice_says_nothing_is_recorded(self):
+        self.assertIn("no se registra", protocol.texts()["demo"]["badge"].lower())
 
 
 class TestScales(unittest.TestCase):
@@ -96,16 +68,22 @@ class TestScales(unittest.TestCase):
         s = protocol.scales()
         self.assertEqual(
             set(s),
-            {"suds", "sam_valence", "sam_arousal", "authenticity", "panas"})
+            {"suds", "sam_valence", "sam_arousal", "authenticity",
+             "manipulation_check", "naturalness", "pre_rating", "credibility",
+             "ai_use", "panas"})
 
     def test_ticks_and_labels_have_the_same_length(self):
-        """PsychoPy pairs ticks with labels by position: if they do not
-        match, the anchors shift and nobody notices by looking at the
-        screen."""
+        """Ticks and labels are paired by position: if they do not match, the
+        anchors shift and nobody notices by looking at the screen."""
         s = protocol.scales()
-        for key in ("suds", "sam_valence", "sam_arousal", "authenticity"):
+        for key in ("suds", "sam_valence", "sam_arousal", "authenticity",
+                    "manipulation_check", "naturalness", "pre_rating",
+                    "credibility"):
             self.assertEqual(len(s[key]["ticks"]), len(s[key]["labels"]),
                              "ticks and labels differ in %s" % key)
+        for item in s["ai_use"]["items"]:
+            self.assertEqual(len(item["ticks"]), len(item["labels"]),
+                             "ticks and labels differ in %s" % item["key"])
 
     def test_panas_has_one_anchor_per_tick(self):
         panas = protocol.scales()["panas"]
@@ -115,6 +93,52 @@ class TestScales(unittest.TestCase):
         items = protocol.scales()["authenticity"]["items"]
         self.assertEqual([i["key"] for i in items], ["auth_1", "auth_2", "auth_3"])
         self.assertFalse(any(i["reverse"] for i in items))
+
+    def test_suds_and_pre_rating_go_from_0_to_10(self):
+        s = protocol.scales()
+        for key in ("suds", "pre_rating"):
+            self.assertEqual((s[key]["ticks"][0], s[key]["ticks"][-1]), (0, 10))
+
+    def test_four_manipulation_items_two_per_component(self):
+        items = protocol.scales()["manipulation_check"]["items"]
+        self.assertEqual(
+            [(i["key"], i["component"]) for i in items],
+            [("mc_understood", "invalidation"),
+             ("mc_made_sense", "invalidation"),
+             ("mc_interested", "withdrawal"),
+             ("mc_wanted_to_end", "withdrawal")])
+
+    def test_naturalness_does_not_mention_the_interlocutor_identity(self):
+        """It runs after every episode: naming the identity would announce
+        from the first one that it is in question."""
+        spec = protocol.scales()["naturalness"]
+        text = (spec["prompt"] + " ".join(spec["labels"])).lower()
+        for word in ("persona", "inteligencia artificial", " ia", "humano"):
+            self.assertNotIn(word, text)
+
+    def test_credibility_goes_from_ai_to_person(self):
+        spec = protocol.scales()["credibility"]
+        self.assertEqual((spec["ticks"][0], spec["ticks"][-1]), (0, 100))
+        self.assertIn("inteligencia artificial", spec["labels"][0])
+        self.assertIn("una persona", spec["labels"][-1])
+        self.assertIn("{domain}", spec["prompt"])
+
+
+class TestInstruments(unittest.TestCase):
+
+    def test_ucla3_and_ecr_are_declared(self):
+        instruments = protocol.instruments()
+        self.assertEqual(set(instruments), {"ucla3", "ecr"})
+        self.assertEqual(instruments["ucla3"]["n_items"], 20)
+        self.assertEqual(instruments["ecr"]["n_items"], 36)
+
+    def test_items_are_all_there_or_still_pending(self):
+        """A half-filled instrument would be scored as if it were complete."""
+        for name, block in protocol.instruments().items():
+            self.assertIn(len(block["items"]), (0, block["n_items"]),
+                          "%s is only partly filled in" % name)
+            if block["items"]:
+                self.assertEqual(len(block["ticks"]), len(block["anchors"]))
 
 
 class TestParameters(unittest.TestCase):
@@ -129,12 +153,14 @@ class TestParameters(unittest.TestCase):
 
     def test_common_parameters_are_in_both_modes(self):
         """The latency formula is design invariant 2: it cannot differ
-        between modes or platforms."""
+        between modes."""
         for mode in ("real", "demo"):
             p = protocol.parameters(mode)
             self.assertEqual(p["latency_base"], 1.2)
             self.assertEqual(p["latency_per_char"], 0.045)
             self.assertEqual(p["latency_max"], 12.0)
+            self.assertEqual(p["rounds"], 3)
+            self.assertEqual(p["distress_threshold"], 9)
 
     def test_unknown_mode_fails(self):
         with self.assertRaises(ValueError):
@@ -143,50 +169,26 @@ class TestParameters(unittest.TestCase):
 
 class TestMarkers(unittest.TestCase):
 
-    def test_the_twenty_two_codes_are_there(self):
-        self.assertEqual(len(protocol.markers()), 22)
-
-    def test_the_debate_markers_are_there(self):
-        for label in ("interlocutor_intro", "topic_shown", "topic_chosen",
-                      "opinion_sent"):
-            self.assertIn(label, protocol.markers())
+    def test_the_spec_events_have_a_code(self):
+        markers = protocol.markers()
+        for label in ("baseline_start", "baseline_end", "episode_start",
+                      "episode_end", "round_start_1", "round_start_2",
+                      "round_start_3", "agent_message_1", "agent_message_2",
+                      "agent_message_3", "measures_start", "measures_end",
+                      "final_check_start", "final_check_end"):
+            self.assertIn(label, markers)
 
     def test_codes_do_not_repeat(self):
         """Two events with the same code are indistinguishable when
-        segmenting the EDA offline."""
+        segmenting the signals offline."""
         codes = list(protocol.markers().values())
         self.assertEqual(len(codes), len(set(codes)))
 
     def test_codes_fit_in_a_byte(self):
-        """The serial and parallel backends send the code as one byte."""
+        """Recording equipment takes event codes as one byte."""
         for label, code in protocol.markers().items():
             self.assertTrue(0 <= code <= 255,
                             "%s does not fit in a byte: %s" % (label, code))
-
-
-class TestScripts(unittest.TestCase):
-
-    def test_both_greetings_are_there(self):
-        s = protocol.scripts()
-        self.assertIn("greeting", s)
-        self.assertIn("greeting2", s)
-
-    def test_each_feedback_has_three_turns(self):
-        s = protocol.scripts()
-        for feedback in ("validation", "rejection"):
-            self.assertEqual(sorted(s[feedback]), [1, 2, 3],
-                             "turns missing in %s" % feedback)
-
-    def test_turns_are_balanced_in_length(self):
-        """Invariant 2: the agent latency is a function of length, so
-        unbalanced scripts would make the wait differ by condition."""
-        s = protocol.scripts()
-        length = {f: sum(len(x) for x in s[f].values())
-                  for f in ("validation", "rejection")}
-        difference = abs(length["validation"] - length["rejection"])
-        self.assertLess(difference, 0.20 * max(length.values()),
-                        "the scripts differ by more than 20%% in length: %s"
-                        % length)
 
 
 class TestPanas(unittest.TestCase):
@@ -213,11 +215,11 @@ class TestPanas(unittest.TestCase):
 
 class TestEverything(unittest.TestCase):
 
-    def test_carries_the_eleven_sections(self):
+    def test_carries_every_section(self):
         self.assertEqual(
             set(protocol.everything()),
-            {"texts", "scales", "markers", "prompts", "parameters",
-             "scripts", "panas", "sequences", "interlocutors", "topics",
+            {"texts", "scales", "markers", "prompts", "parameters", "panas",
+             "sequences", "domain_sequences", "domains", "instruments",
              "fallback"})
 
     def test_is_json_serializable(self):
@@ -247,25 +249,35 @@ class TestSequences(unittest.TestCase):
             protocol.split_condition("robot_love")
 
 
-class TestInterlocutors(unittest.TestCase):
+class TestDomains(unittest.TestCase):
 
-    def test_two_per_type_with_distinct_names(self):
-        people = protocol.interlocutors()
-        self.assertEqual(len(people), 4)
-        self.assertEqual(len({p["name"] for p in people}), 4)
-        self.assertEqual(sum(p["type"] == "human" for p in people), 2)
-        self.assertEqual(sum(p["type"] == "ai" for p in people), 2)
+    def test_the_four_domains_in_order(self):
+        self.assertEqual(
+            [d["label"] for d in protocol.domains()],
+            ["el trabajo o el estudio", "una amistad",
+             "tu familia o tu pareja", "vos mismo"])
+
+    def test_ids_are_unique(self):
+        ids = [d["id"] for d in protocol.domains()]
+        self.assertEqual(len(ids), len(set(ids)))
 
 
-class TestTopics(unittest.TestCase):
+class TestDomainSequences(unittest.TestCase):
 
-    def test_eight_topics_with_unique_ids_and_questions(self):
-        topics = protocol.topics()
-        self.assertEqual(len(topics), 8)
-        self.assertEqual(len({t["id"] for t in topics}), 8)
-        for t in topics:
-            self.assertTrue(t["question"].endswith("?"))
-            self.assertTrue(t["category"])
+    def test_every_row_gives_each_condition_a_different_domain(self):
+        ids = sorted(d["id"] for d in protocol.domains())
+        rows = protocol.domain_sequences()
+        self.assertEqual(sorted(rows), ["1", "2", "3", "4"])
+        for row in rows.values():
+            self.assertEqual(sorted(row), sorted(protocol.CONDITIONS))
+            self.assertEqual(sorted(row.values()), ids)
+
+    def test_every_condition_meets_every_domain_across_rows(self):
+        """Without this a domain would be confounded with a condition."""
+        ids = sorted(d["id"] for d in protocol.domains())
+        rows = protocol.domain_sequences().values()
+        for condition in protocol.CONDITIONS:
+            self.assertEqual(sorted(row[condition] for row in rows), ids)
 
 
 class TestFallbackLines(unittest.TestCase):
@@ -276,38 +288,39 @@ class TestFallbackLines(unittest.TestCase):
         for feedback in lines:
             self.assertEqual(sorted(lines[feedback]), [1, 2, 3])
 
+    def test_lines_are_balanced_in_length(self):
+        """Invariant 2: the agent latency is a function of length, so
+        unbalanced lines would make the wait differ by condition."""
+        lines = protocol.fallback_lines()
+        length = {f: sum(len(x) for x in lines[f].values())
+                  for f in ("validation", "rejection")}
+        difference = abs(length["validation"] - length["rejection"])
+        self.assertLess(difference, 0.20 * max(length.values()),
+                        "the lines differ by more than 20%% in length: %s"
+                        % length)
 
-class TestDebatePrompts(unittest.TestCase):
-
-    def test_debate_rules_have_the_placeholders(self):
-        debate = protocol.prompts()["debate"]
-        for ph in ("{name}", "{question}", "{role}", "{max_chars}"):
-            self.assertIn(ph, debate["rules"])
-        self.assertEqual(set(debate["role"]), {"validation", "rejection"})
-
-    def test_situation_prompts_still_there_for_the_desktop(self):
-        situation = protocol.prompts()["situation"]
-        self.assertIn("{examples}", situation["rules"])
-        self.assertEqual(set(situation["role"]), {"validation", "rejection"})
+    def test_lines_fit_the_message_cap(self):
+        cap = protocol.prompts()["max_chars"]
+        for block in protocol.fallback_lines().values():
+            for line in block.values():
+                self.assertLessEqual(len(line), cap)
 
 
-class TestWebTexts(unittest.TestCase):
+class TestPrompts(unittest.TestCase):
 
-    def test_new_screens_present(self):
-        t = protocol.texts()
-        for key in ("instructions", "interlocutor_intro", "topic_pick",
-                    "topic_card", "interlocutor_label", "debriefing"):
-            self.assertIn(key, t)
-        self.assertIn("{name}", t["interlocutor_intro"]["human"])
-        self.assertIn("{name}", t["interlocutor_intro"]["ai"])
-        self.assertIn("{name}", t["interlocutor_label"]["ai"])
-        self.assertTrue(t["topic_card"]["hint"].strip())
-        self.assertIsInstance(t["debriefing"]["body"], str)
+    def test_uses_the_model_of_the_spec(self):
+        self.assertEqual(protocol.prompts()["model"],
+                         "anthropic/claude-haiku-4.5")
+        self.assertEqual(protocol.prompts()["max_chars"], 350)
 
-    def test_opinion_has_no_minimum_length_but_a_test_filler(self):
-        p = protocol.parameters("demo")
-        self.assertNotIn("min_opinion_chars", p)
-        self.assertTrue(p["test_filler_opinion"].strip())
+    def test_the_rules_have_the_placeholders(self):
+        rules = protocol.prompts()["rules"]
+        for ph in ("{role}", "{max_chars}", "{examples}"):
+            self.assertIn(ph, rules)
+
+    def test_one_task_paragraph_per_feedback(self):
+        self.assertEqual(set(protocol.prompts()["role"]),
+                         {"validation", "rejection"})
 
 
 if __name__ == "__main__":

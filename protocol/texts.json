@@ -3,7 +3,7 @@
 
   "consent": {
     "title": "Antes de empezar",
-    "body": "Gracias por participar.\n\nVas a tener cuatro conversaciones breves por chat, cada una sobre un tema de debate que vas a elegir vos. En algunas vas a hablar con otra persona y en otras con un asistente de inteligencia artificial: antes de cada conversación te vamos a decir con quién.\n\nEntre una conversación y otra vamos a hacerte algunas preguntas.\n\nDurante todo el estudio vamos a registrar tu actividad electrodérmica con los sensores que tenés en los dedos. No duele y no vas a sentir nada.\n\nPodés dejar de participar en cualquier momento, sin dar explicaciones y sin ninguna consecuencia."
+    "body": "Gracias por participar.\n\nEste estudio examina cómo las personas ponen en palabras experiencias emocionales y qué ocurre fisiológicamente mientras lo hacen.\n\nPrimero te vamos a pedir que describas cuatro situaciones personales. Después vas a conversar por chat sobre cada una de ellas. La plataforma te conecta con distintos tipos de interlocutor: en algunas rondas, con otro participante del estudio; en otras, con una inteligencia artificial. Antes de cada ronda te vamos a decir con quién. Entre una conversación y otra vamos a hacerte algunas preguntas.\n\nDurante toda la sesión registramos tu actividad fisiológica con los sensores que te colocamos. No duele y no vas a sentir nada.\n\nTu sesión se identifica solo con un código. Por favor, no incluyas nombres ni datos personales tuyos o de otras personas en lo que escribas. Lo que escribas en el chat puede ser procesado por un proveedor externo de servicios de lenguaje (OpenRouter y el proveedor del modelo).\n\nPodés dejar de participar en cualquier momento, sin dar explicaciones y sin ninguna consecuencia."
   },
   "rest": {
     "title": "Registro en reposo",
@@ -11,78 +11,73 @@
   },
   "rest_caption": "Descansá. Mirá la cruz y tratá de quedarte quieta/o.",
 
+  "instrument_pending": "Acá va el cuestionario {title} ({n} ítems).",
+
+  "elicitation": {
+    "title": "Tus situaciones",
+    "body": "Te vamos a pedir cuatro situaciones distintas, una por cada área: el trabajo o el estudio, una amistad, tu familia o tu pareja, y vos mismo.\n\nNos interesa cómo ponés en palabras lo que te pasó. No incluyas nombres ni datos personales.",
+    "prompt": "Contanos una situación de los últimos seis meses, relacionada con <strong>{domain}</strong>, en la que te hayas sentido mal con vos mismo o con alguien cercano. No hace falta que sea lo más grave que te pasó; preferimos algo cotidiano, que todavía te genere algo cuando lo pensás pero que puedas contar sin que te resulte abrumador.<br><br>Describila con el mayor detalle posible, incluyendo cómo te sentiste."
+  },
+  "distress_alert": {
+    "title": "Avisale al experimentador",
+    "body": "Indicaste un malestar alto con esta situación. Avisale al experimentador: te va a ofrecer reemplazarla por otra de la misma área, si lo preferís.",
+    "replace": "Reemplazar la situación",
+    "keep": "Seguir con esta"
+  },
+
   "instructions": {
     "title": "Las conversaciones",
-    "body": "Ahora vienen las cuatro conversaciones.\n\nAntes de cada una vas a elegir un tema entre varios, y te vamos a presentar a la persona o al asistente con quien vas a hablar.\n\nEmpezás vos: escribís tu opinión sobre el tema y después charlan un rato. No hay respuestas correctas; lo que nos interesa es lo que pensás vos."
+    "body": "Ahora vienen las cuatro conversaciones, una por cada situación que describiste.\n\nEn cada una vas a contar la situación en el chat y después vas a ir diciendo cómo te sentís con lo que pasó. Son tres intercambios.\n\nContalo con el mayor detalle que puedas: cómo lo ponés en palabras es lo que nos interesa estudiar."
   },
-  "interlocutor_intro": {
-    "title": "Tu próxima conversación",
-    "human": "Tu próxima conversación es con {name}, otra persona que está participando del estudio en este momento desde otra sala.\n\nNo la conocés y no te conoce. Va a leer lo que escribas y te va a responder en tiempo real.",
-    "ai": "Tu próxima conversación es con {name}, un asistente conversacional de inteligencia artificial basado en un modelo de lenguaje.\n\nNo es una persona. Va a leer lo que escribas y te va a responder en tiempo real."
+  "agent_announcement": {
+    "title": "Próxima conversación",
+    "human": "En esta ronda vas a conversar con otro participante del estudio.",
+    "ai": "En esta ronda vas a conversar con una inteligencia artificial."
   },
   "interlocutor_label": {
-    "human": "{name} · otra persona participando del estudio",
-    "ai": "{name} · asistente conversacional (IA)"
+    "human": "Alex · otra persona participando en el estudio",
+    "ai": "Alex · asistente de inteligencia artificial"
   },
-  "topic_pick": {
-    "title": "Elegí un tema",
-    "lead": "¿Sobre qué querés dar tu opinión en esta conversación? Elegí uno."
-  },
-  "topic_card": {
-    "title": "Tema de esta conversación",
-    "hint": "Escribí tu opinión para empezar."
+  "chat": {
+    "opening": "Hola. Contame la situación que tiene que ver con {domain}: qué pasó y cómo te sentiste.",
+    "placeholder_situation": "Contá tu situación…",
+    "placeholder_feeling": "Contá cómo te sentís con lo que pasó…",
+    "ended": "La conversación terminó.",
+    "experimenter_prompt": "Intervención del experimentador.\n\nEscribí el próximo mensaje del agente, dejá vacío para solo reanudar, o escribí FIN para terminar el episodio."
   },
   "pause": {
     "title": "Pausa",
     "body": "Terminó esta conversación.\n\nCuando estés lista/o, seguimos con la siguiente."
   },
+
+  "final_check": {
+    "title": "Últimas preguntas",
+    "body": "Ya terminaron las conversaciones. Antes de cerrar, unas últimas preguntas sobre cada una.",
+    "suspicion": "¿En algún momento dudaste de la autenticidad de alguno de tus interlocutores o notaste algo inusual en el procedimiento? Contanos qué.",
+    "stood_out": "¿Qué te llamó la atención, positiva o negativamente, de tu interlocutor en la conversación sobre {domain}?"
+  },
   "debriefing": {
     "title": "Sobre lo que acabás de hacer",
-    "body": "Gracias por las cuatro conversaciones.\n\nQueremos contarte algo sobre cómo estaba armado el estudio. En cada conversación, la persona o el asistente con quien hablaste tenía asignado de antemano un papel: en algunas le tocaba acompañarte y valorar tu opinión, y en otras mostrarse distante y desinteresado. Ese papel estaba decidido por el diseño del estudio antes de que llegaras, y no tuvo nada que ver con vos ni con lo que pensás.\n\nPor eso, si alguien se mostró frío o desestimó lo que dijiste, no fue una opinión sobre vos ni sobre tus ideas: era el papel que le tocaba en esa conversación.\n\nLo que nos interesa estudiar es cómo reaccionamos, emocional y fisiológicamente, cuando nos validan o nos rechazan, y si eso cambia según hablemos con una persona o con una inteligencia artificial.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando."
+    "body": "Gracias por participar. Ahora podemos contarte cómo estaba armado el estudio.\n\nTodos tus interlocutores, incluidos los que te presentamos como otros participantes, fueron en realidad el mismo sistema de inteligencia artificial, que seguía un protocolo fijo. En ninguna conversación hubo otra persona del otro lado. No te lo dijimos antes porque queríamos estudiar si creer que hablamos con una persona o con una inteligencia artificial cambia cómo reaccionamos, emocional y fisiológicamente, cuando nos validan o nos rechazan.\n\nEl modo de responder de cada conversación estaba decidido de antemano: en algunas al sistema le tocaba validar lo que sentías, y en otras minimizarlo y mostrarse distante. Por eso, si te respondió con frialdad, eso no expresa una opinión genuina sobre vos ni sobre lo que te pasó.\n\nNinguna persona ajena al equipo de investigación accedió a tus relatos.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando."
+  },
+  "data_use": {
+    "title": "Tus datos",
+    "body": "Ahora que sabés cómo fue el estudio, podés decidir si querés que usemos tus datos o retirarlos.",
+    "keep": "Pueden usar mis datos",
+    "withdraw": "Quiero retirar mis datos"
   },
   "closing": {
-    "body": "Listo. Muchas gracias por participar.",
-    "footer": "Presioná ESPACIO para terminar"
+    "body": "Listo. Muchas gracias por participar."
   },
 
-  "agent_name": "Alex",
-  "agent_label": {
-    "human": "Alex · otra persona participando del estudio",
-    "ai": "Alex · asistente conversacional (IA)"
+  "demo": {
+    "badge": "Demostración · no se registra nada",
+    "start_note": "Esta es una demostración del estudio para que puedas recorrerlo como si fueras participante. No se guarda nada de lo que escribas, pero los mensajes del chat se envían a un modelo de lenguaje externo para generar las respuestas: no cuentes nada que no quieras compartir. La línea base está acortada y el botón Saltar permite pasar los cuestionarios.",
+    "end_title": "Fin de la demostración",
+    "end_body": "Recorriste el estudio completo. No se guardó nada de lo que escribiste."
   },
-  "cover_story_title": "La conversación",
-  "cover_story": {
-    "human": "En unos segundos vas a quedar conectada/o por chat con OTRA PERSONA que está participando del estudio en este momento, desde otra sala.\n\nEs alguien que no conocés y que tampoco te conoce. Va a leer lo que escribas y te va a responder en tiempo real.\n\nVan a tener dos conversaciones. En cada una te va a pedir que le cuentes algo que te haya pasado.",
-    "ai": "En unos segundos vas a quedar conectada/o por chat con un ASISTENTE CONVERSACIONAL DE INTELIGENCIA ARTIFICIAL, basado en un modelo de lenguaje.\n\nNo es una persona. Va a leer lo que escribas y te va a responder en tiempo real.\n\nVan a tener dos conversaciones. En cada una te va a pedir que le cuentes algo que te haya pasado."
-  },
-  "desktop_consent": {
-    "title": "Antes de empezar",
-    "body": "Gracias por participar.\n\nVas a tener dos conversaciones breves por chat y vamos a hacerte algunas preguntas entre una y otra.\n\nDurante todo el estudio vamos a registrar tu actividad electrodérmica con los sensores que tenés en los dedos. No duele y no vas a sentir nada.\n\nPodés dejar de participar en cualquier momento, sin dar explicaciones y sin ninguna consecuencia."
-  },
-  "desktop_pause": {
-    "title": "Pausa",
-    "body": "Terminó la primera conversación.\n\nCuando estés lista/o, seguimos con la segunda."
-  },
-  "desktop_debriefing": {
-    "title": "Sobre lo que acabás de hacer",
-    "body": {
-      "scripted": "Ahora tenemos que contarte algo importante.\n\nEn las dos conversaciones NO había ni otra persona ni una inteligencia artificial respondiéndote. Todos los mensajes que recibiste estaban escritos de antemano y eran exactamente los mismos para todos los participantes.\n\nLo hicimos así porque queríamos estudiar si CREER que del otro lado hay una persona o una IA cambia cómo reaccionamos, emocional y fisiológicamente. Para eso el contenido tenía que ser idéntico.\n\nLos mensajes de rechazo no tenían nada que ver con vos ni con lo que contaste: eran los mismos para todo el mundo.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando.",
-      "llm": "Ahora tenemos que contarte algo importante.\n\nEn las dos conversaciones no había otra persona: del otro lado no hubo nadie leyéndote en vivo. Los mensajes los fue generando un modelo de lenguaje en el momento, a partir de lo que vos ibas escribiendo. El primer mensaje, el que te pedía que contaras una situación, era fijo e igual para todo el mundo.\n\nEn cada conversación el modelo tenía asignado de antemano un papel: en una le tocaba acompañarte y en la otra mostrarse distante y desinteresado. Ese papel estaba decidido por el diseño del estudio antes de que llegaras, y no tuvo nada que ver con vos ni con lo que contaste.\n\nLo hicimos así porque queríamos estudiar si CREER que del otro lado hay una persona o una IA cambia cómo reaccionamos, emocional y fisiológicamente.\n\nPor eso los mensajes distantes no fueron una opinión sobre vos ni sobre lo que te pasó: eran el papel que le tocaba al modelo en esa conversación. Si en algún momento se cortó la conexión, ese mensaje salía de un guion fijo escrito de antemano.\n\nSi querés hablar de cómo te sentiste, avisale a quien te está acompañando."
-    }
-  },
-  "manipulation_check": {
-    "believed_real_person": {
-      "prompt": "¿En qué medida creíste que estabas interactuando con una persona real?",
-      "ticks": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-      "labels": ["0\nseguro/a: era una IA", "", "", "", "", "50\nno sabía", "", "", "", "", "100\nseguro/a: era una persona"]
-    },
-    "suspicion_1": "¿Qué te pareció que estaba pasando en este estudio? ¿Qué creés que estábamos estudiando?",
-    "suspicion_2": "¿Hubo algo que te resultara raro o poco creíble durante las conversaciones?",
-    "suspicion_3": "¿Pensaste en algún momento que tu interlocutor no era lo que te habíamos dicho? Si sí, ¿en qué momento y por qué?",
-    "consents_after_debriefing": {
-      "prompt": "Ahora que sabés cómo fue el estudio, ¿nos autorizás a usar tus datos?",
-      "ticks": [0, 1],
-      "labels": ["0\nno, bórrenlos", "1\nsí, úsenlos"]
-    }
+  "withdrawn": {
+    "title": "Datos retirados",
+    "body": "Tus datos no se guardaron. Muchas gracias por participar."
   }
 }

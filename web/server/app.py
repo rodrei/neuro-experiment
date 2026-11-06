@@ -10,6 +10,11 @@ Five responsibilities and nothing else:
   POST /api/turn                        -> proxy to the LLM (the key never leaves here)
   POST /api/data                        -> writes the session's four CSVs
 
+DEMO_MODE (on by default) is the hosted walkthrough for the evaluators: the
+page says nothing is recorded, so /api/data refuses to store anything, and a
+daily cap limits what repeated walkthroughs can spend. DEMO_MODE=0 is the full
+study: real timings and the four CSVs.
+
 It is `http.server` from the standard library on purpose: it is five routes,
 and that way the Docker image needs no `pip install` and running it locally
 needs no environment.
@@ -47,6 +52,9 @@ DATA_DIR = os.environ.get("DATA_DIR", os.path.join(ROOT, "data"))
 PORT = int(os.environ.get("PORT", "8080"))
 LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "20"))
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "30"))
+DEMO_MODE = os.environ.get("DEMO_MODE", "1") != "0"
+# Twelve turns per walkthrough: this is fifty walkthroughs a day.
+MAX_TURNS_PER_DAY = int(os.environ.get("MAX_TURNS_PER_DAY", "600"))
 
 # Agent transport. None = the real one (OpenRouter). The tests override it.
 TRANSPORT = None
@@ -67,6 +75,26 @@ MIME_TYPES = {
 _visits = {}
 _lock = threading.Lock()
 _health_cache = {"at": 0.0, "result": None}
+_turn_budget = {"day": None, "used": 0}
+
+
+def reset_turn_budget():
+    with _lock:
+        _turn_budget["day"] = None
+        _turn_budget["used"] = 0
+
+
+def _spend_turn():
+    """Counts one model call against today's cap. False once it is used up."""
+    today = datetime.now().date()
+    with _lock:
+        if _turn_budget["day"] != today:
+            _turn_budget["day"] = today
+            _turn_budget["used"] = 0
+        if _turn_budget["used"] >= MAX_TURNS_PER_DAY:
+            return False
+        _turn_budget["used"] += 1
+    return True
 
 
 def _allowed(ip):
@@ -156,7 +184,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             refresh = query.get("refresh", ["0"])[0] == "1"
             return self._json(200, {"ok": True, "llm": _health(refresh)})
         if path == "/api/protocol":
-            return self._json(200, protocol.everything())
+            return self._json(200, dict(protocol.everything(),
+                                        demo_mode=DEMO_MODE))
         return self._static(path)
 
     def _static(self, path):
@@ -199,8 +228,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _turn(self, body):
         """Rebuilds the agent, replays the history into it and asks for a turn.
 
-        Body: {feedback, name, question, history, fallback_line, access_code}.
-        Reply: {text, origin, fallback_reason}. If the API fails, reply()
+        Body: {feedback, history, fallback_line, access_code}. Nothing else
+        reaches the prompt: the model never learns the label the participant
+        sees. Reply: {text, origin, fallback_reason}. If the API fails, reply()
         returns the fallback line with origin "fallback" and the reason: the
         session never goes down because of one turn, and the failure is
         visible.
@@ -208,11 +238,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         feedback = body.get("feedback")
         if feedback not in llm_agent.FEEDBACK_TYPES:
             return self._error(400, "invalid feedback")
+        history = body.get("history", [])
+        # Opening + three rounds: the third turn sees at most six messages.
+        if len(history) > 2 * protocol.parameters("demo")["rounds"]:
+            return self._error(400, "history longer than an episode")
+        if DEMO_MODE and not _spend_turn():
+            return self._json(200, {"text": body.get("fallback_line", ""),
+                                    "origin": "fallback",
+                                    "fallback_reason": "daily turn cap"})
         agent = llm_agent.LLMAgent(feedback, transport=TRANSPORT,
-                                   timeout=LLM_TIMEOUT,
-                                   name=body.get("name"),
-                                   question=body.get("question"))
-        for message in body.get("history", []):
+                                   timeout=LLM_TIMEOUT)
+        for message in history:
             text = message.get("content", "")
             if message.get("role") == "user":
                 agent.hear(text)
@@ -224,6 +260,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _data(self, body):
         """Writes the four CSVs, prefixed S1_<id>_seq<sequence>_<stamp>."""
+        if DEMO_MODE:
+            return self._error(403, "the demo does not store sessions")
         info = body.get("info") or {}
         responses = dict(body.get("responses") or {})
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -258,7 +296,8 @@ def create_server(port=0, data_dir=None):
 def main():
     server = create_server(PORT)
     print("Study 1 — web at http://0.0.0.0:%d" % server.server_address[1])
-    print("Data in %s" % DATA_DIR)
+    print("DEMO MODE: nothing is stored" if DEMO_MODE
+          else "Data in %s" % DATA_DIR)
     source = llm_agent.api_key_source()
     if source == "env":
         print("LLM key: found in OPENROUTER_API_KEY")

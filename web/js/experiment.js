@@ -1,11 +1,16 @@
-/* The timeline of the debate design (2x2 within-subject).
+/* The timeline of the study (2x2 within-subject).
  *
- * start form -> consent -> baseline -> instructions -> 4 episodes, each:
- * interlocutor intro -> topic pick -> connecting -> chat -> measures
- * (-> pause) -> debriefing -> close -> submission.
+ * start form -> consent -> rest baseline -> baseline questionnaires -> the four
+ * situations, each with its 0-10 rating -> 4 episodes, each: SUDS ->
+ * announcement -> connecting -> chat -> measures (-> pause) -> credibility and
+ * open questions -> debriefing -> data use -> close -> submission.
  *
- * The order of the four conditions comes from protocol/sequences.json (a
- * Latin square indexed by the sequence chosen on the start form). */
+ * The order of the four conditions comes from protocol/sequences.json and the
+ * domain of each condition from protocol/domain_sequences.json, two Latin
+ * squares indexed by the rows chosen on the start form.
+ *
+ * In demo mode the server stores nothing: the page says so, and the submission
+ * is replaced by a closing screen. */
 
 let SESSION_CONFIG = null;
 
@@ -14,25 +19,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   const button = document.getElementById("begin");
   const idField = document.querySelector("input[name=participant_id]");
   const sequenceSelect = document.getElementById("sequence");
+  const domainSelect = document.getElementById("domain_sequence");
   button.disabled = true;
 
-  for (let i = 1; i <= 4; i++) {
-    const option = document.createElement("option");
-    option.value = String(i);
-    option.textContent = String(i);
-    sequenceSelect.appendChild(option);
+  for (const select of [sequenceSelect, domainSelect]) {
+    for (let i = 1; i <= 4; i++) {
+      const option = document.createElement("option");
+      option.value = String(i);
+      option.textContent = String(i);
+      select.appendChild(option);
+    }
   }
 
-  // Sequence suggested from the id, so the four rows of the Latin square
-  // spread over participants without anyone thinking about it. Stops
-  // following the id once the experimenter picks one by hand.
-  let sequenceTouched = false;
+  // Rows suggested from the id, so the 16 row combinations spread over
+  // participants without anyone thinking about it. A row stops following the
+  // id once the experimenter picks one by hand.
+  const touched = { sequence: false, domain: false };
   const suggest = () => {
-    if (sequenceTouched) return;
-    sequenceSelect.value = String(suggestedSequence(idField.value));
+    const rows = assignedRows(idField.value);
+    if (!touched.sequence) sequenceSelect.value = String(rows.sequence);
+    if (!touched.domain) domainSelect.value = String(rows.domain_sequence);
   };
   idField.addEventListener("input", suggest);
-  sequenceSelect.addEventListener("change", () => { sequenceTouched = true; });
+  sequenceSelect.addEventListener("change", () => { touched.sequence = true; });
+  domainSelect.addEventListener("change", () => { touched.domain = true; });
   suggest();
 
   try {
@@ -43,6 +53,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     status.textContent = "No se pudo cargar el protocolo: " + e.message;
     return;
   }
+
+  if (isDemo()) applyDemoMode(sequenceSelect, domainSelect);
 
   checkHealth(false);
   document.getElementById("llm-retry").addEventListener("click", (e) => {
@@ -55,6 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const data = new FormData(e.target);
     SESSION_CONFIG = Object.fromEntries(data.entries());
     SESSION_CONFIG.sequence = parseInt(SESSION_CONFIG.sequence, 10);
+    SESSION_CONFIG.domain_sequence = parseInt(SESSION_CONFIG.domain_sequence, 10);
     // An unchecked checkbox is not in the FormData.
     SESSION_CONFIG.test_mode = data.get("test_mode") === "1";
     document.getElementById("start").style.display = "none";
@@ -63,9 +76,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
-function suggestedSequence(id) {
-  const sum = Array.from(String(id || "")).reduce((a, c) => a + c.charCodeAt(0), 0);
-  return (sum % 4) + 1;
+/* Which rows of the two Latin squares a participant gets, from the number in
+ * their id: the sequence cycles every participant and the domain row every
+ * four, so the two squares cross independently. */
+function assignedRows(id) {
+  const digits = String(id || "").match(/\d+/);
+  const n = digits
+    ? parseInt(digits[0], 10)
+    : Array.from(String(id || "")).reduce((a, c) => a + c.charCodeAt(0), 1);
+  const index = Math.max(n - 1, 0);
+  return { sequence: index % 4 + 1,
+           domain_sequence: Math.floor(index / 4) % 4 + 1 };
+}
+
+/* The hosted walkthrough: a notice that nothing is recorded, no experimenter
+ * fields, and any row of the squares. */
+function applyDemoMode(sequenceSelect, domainSelect) {
+  document.body.classList.add("demo");
+  const badge = document.getElementById("demo-badge");
+  badge.textContent = texts().demo.badge;
+  badge.hidden = false;
+  const note = document.getElementById("demo-note");
+  note.textContent = texts().demo.start_note;
+  note.hidden = false;
+  const randomRow = () => String(Math.floor(Math.random() * 4) + 1);
+  sequenceSelect.value = randomRow();
+  domainSelect.value = randomRow();
 }
 
 /* Pre-flight: is the LLM going to answer? Shown under the start form so a
@@ -96,6 +132,7 @@ async function checkHealth(refresh) {
 function runExperiment() {
   const p = parameters();
   const txt = texts();
+  const sc = window.PROTOCOL.scales;
   const cfg = SESSION_CONFIG;
   const events = [];
   const t0 = performance.now();
@@ -111,12 +148,20 @@ function runExperiment() {
     });
   }
 
+  const session = {
+    plan: [],           // one entry per episode; read by submit()
+    situations: {},     // domain id -> {text, pre_rating, discarded, ...}
+    answers: {},        // open questions, verbatim
+    withdrawn: false,
+  };
+
   const jsPsych = initJsPsych({
     display_element: "jspsych-target",
-    on_finish: () => submit(jsPsych, events),
+    on_finish: () => submit(jsPsych, events, session),
   });
 
-  if (cfg.test_mode) enableTestMode(jsPsych);
+  if (cfg.test_mode || isDemo()) enableSkip(jsPsych);
+  if (cfg.test_mode) document.body.classList.add("test-mode");
 
   const mark = (label, detail) => ({
     type: jsPsychHtmlKeyboardResponse,
@@ -128,13 +173,13 @@ function runExperiment() {
 
   const timeline = [];
 
-  timeline.push(mark("experiment_start", "seq" + cfg.sequence));
+  timeline.push(mark("experiment_start",
+                     "seq" + cfg.sequence + "_dom" + cfg.domain_sequence));
 
-  // Consent
+  // Consent, with the stated purpose of the study.
   timeline.push(textScreen(txt.consent.title, txt.consent.body));
 
-  // Baseline: fixation cross. Without EDA it measures nothing, but it stays
-  // so the walkthrough is the same as the desktop's.
+  // Resting baseline: fixation cross.
   timeline.push(textScreen(txt.rest.title, txt.rest.body));
   timeline.push(mark("baseline_start"));
   timeline.push({
@@ -147,70 +192,35 @@ function runExperiment() {
   });
   timeline.push(mark("baseline_end"));
 
-  // Baseline measures: WITHOUT authenticity (no interlocutor yet).
   timeline.push(mark("measures_start", "baseline"));
-  for (const t of measuresBlock("baseline", false, mark)) timeline.push(t);
+  timeline.push(...baselineMeasures(mark));
   timeline.push(mark("measures_end", "baseline"));
 
-  // General instructions for the four debates.
+  // The four situations, all before any feedback.
+  timeline.push(textScreen(txt.elicitation.title, txt.elicitation.body));
+  for (const domain of window.PROTOCOL.domains) {
+    timeline.push(elicitationNode(domain, session, p, txt, sc, mark, record));
+  }
+
   timeline.push(textScreen(txt.instructions.title, txt.instructions.body));
 
   // The four episodes, in the order of the Latin square row.
   const sequence = window.PROTOCOL.sequences[String(cfg.sequence)];
-  const interlocutors = window.PROTOCOL.interlocutors;
-  const usedInterlocutors = [];
-  const usedTopics = [];
-  const plan = [];      // filled here; read by submit()
+  const domainOf = window.PROTOCOL.domain_sequences[String(cfg.domain_sequence)];
 
   sequence.forEach((condition, i) => {
     const episode = i + 1;
     const [agentType, feedback] = condition.split("_");
     const moment = "ep" + episode;
+    const domain = window.PROTOCOL.domains.find((d) => d.id === domainOf[condition]);
+    session.plan.push({ episode, condition, agent_type: agentType, feedback, domain });
 
-    // Names are assigned by position within the agent type, not by
-    // feedback: the sequences balance name x feedback across participants.
-    const who = interlocutors.find(
-      (it) => it.type === agentType && !usedInterlocutors.includes(it.name));
-    usedInterlocutors.push(who.name);
-    const entry = { episode, condition, agent_type: agentType, feedback,
-                    interlocutor: who.name, topic: null };
-    plan.push(entry);
+    timeline.push(sliderScale(sc.suds, moment + "_pre_suds"));
 
-    // Interlocutor intro: honest, no persuasion.
-    timeline.push(mark("interlocutor_intro", episode + "_" + condition));
+    timeline.push(mark("agent_announcement", episode + "_" + condition));
     timeline.push(Object.assign(
-      textScreen(txt.interlocutor_intro.title,
-                 fill(txt.interlocutor_intro[agentType], { name: who.name })),
-      { data: { screen: "intro" } }));
-
-    // Topic pick: the questions not used yet in this session, as cards.
-    timeline.push(mark("topic_shown", String(episode)));
-    timeline.push({
-      type: jsPsychHtmlButtonResponse,
-      stimulus: `<div class="screen-title">${txt.topic_pick.title}</div>
-                 <div class="screen-lead">${txt.topic_pick.lead}</div>`,
-      choices: () => remainingTopics(usedTopics).map((t) => t.id),
-      button_html: (choice) => {
-        const topic = window.PROTOCOL.topics.find((t) => t.id === choice);
-        return `<button class="topic-card" data-topic="${topic.id}">
-                  <span class="topic-category">${topic.category}</span>
-                  <span class="topic-question">${topic.question}</span>
-                </button>`;
-      },
-      button_layout: "flex",
-      data: { screen: "topic-pick", episode: episode },
-      on_finish: (d) => {
-        const remaining = remainingTopics(usedTopics);
-        // A skipped screen (test mode) picks the first remaining topic so
-        // the episode still has a question.
-        const topic = d.response === null || d.response === undefined
-          ? remaining[0] : remaining[d.response];
-        usedTopics.push(topic.id);
-        entry.topic = topic;
-        d.topic_id = topic.id;
-        record("topic_chosen", topic.id);
-      },
-    });
+      textScreen(txt.agent_announcement.title, txt.agent_announcement[agentType]),
+      { data: { screen: "announcement" } }));
 
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
@@ -226,15 +236,14 @@ function runExperiment() {
       condition: condition,
       agent_type: agentType,
       feedback: feedback,
-      interlocutor: who.name,
-      label: fill(txt.interlocutor_label[agentType], { name: who.name }),
-      topic: () => entry.topic,
+      domain: domain,
+      label: txt.interlocutor_label[agentType],
       access_code: cfg.access_code || "",
       test_mode: cfg.test_mode,
     });
 
     timeline.push(mark("measures_start", moment + "_" + condition));
-    for (const t of measuresBlock(moment, true, mark)) timeline.push(t);
+    timeline.push(...episodeMeasures(moment, mark));
     timeline.push(mark("measures_end", moment + "_" + condition));
 
     if (i < sequence.length - 1) {
@@ -243,36 +252,119 @@ function runExperiment() {
     }
   });
 
+  // Final block: the direct questions about identity come only now, so they
+  // cannot contaminate the episodes.
+  timeline.push(mark("final_check_start"));
+  timeline.push(textScreen(txt.final_check.title, txt.final_check.body));
+  for (const entry of session.plan) {
+    timeline.push(sliderScale(
+      Object.assign({}, sc.credibility,
+                    { prompt: fill(sc.credibility.prompt, { domain: entry.domain.label }) }),
+      "ep" + entry.episode + "_credibility"));
+  }
+  timeline.push(openQuestion(txt.final_check.suspicion, "suspicion", session.answers));
+  for (const entry of session.plan) {
+    timeline.push(openQuestion(
+      fill(txt.final_check.stood_out, { domain: entry.domain.label }),
+      "ep" + entry.episode + "_stood_out", session.answers));
+  }
+  timeline.push(mark("final_check_end"));
+
+  timeline.push(mark("debriefing_start"));
   timeline.push(Object.assign(
     textScreen(txt.debriefing.title, txt.debriefing.body),
     { data: { screen: "debriefing" } }));
+
+  timeline.push({
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div class="screen-title">${txt.data_use.title}</div>
+               <div class="screen-body">${txt.data_use.body}</div>`,
+    choices: [txt.data_use.keep, txt.data_use.withdraw],
+    on_finish: (d) => { session.withdrawn = d.response === 1; },
+  });
 
   timeline.push(Object.assign(textScreen(null, txt.closing.body, "Terminar"),
                               { data: { screen: "close" } }));
   timeline.push(mark("experiment_end"));
 
-  jsPsych.plan = plan;
   jsPsych.run(timeline);
 }
 
-function remainingTopics(usedTopics) {
-  return window.PROTOCOL.topics.filter((t) => !usedTopics.includes(t.id));
+/* One domain: the text, its rating and, at the top of the scale, the alert that
+ * lets the experimenter replace it. A replacement repeats the whole node. */
+function elicitationNode(domain, session, p, txt, sc, mark, record) {
+  const situation = { text: null, pre_rating: null, discarded: [], alerted: 0 };
+  session.situations[domain.id] = situation;
+  let replacing = false;
+
+  const rating = sliderScale(sc.pre_rating, "situation_" + domain.id + "_pre_rating");
+  rating.on_finish = (d) => {
+    situation.pre_rating = valueOrNull(d.response);
+    record("situation_end", domain.id + "_rating=" + situation.pre_rating);
+  };
+
+  const alert = {
+    timeline: [{
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `<div class="screen-title">${txt.distress_alert.title}</div>
+                 <div class="screen-body">${txt.distress_alert.body}</div>`,
+      choices: [txt.distress_alert.keep, txt.distress_alert.replace],
+      on_start: () => {
+        situation.alerted = 1;
+        record("distress_alert", domain.id);
+      },
+      on_finish: (d) => {
+        replacing = d.response === 1;
+        if (replacing) {
+          situation.discarded.push({ text: situation.text,
+                                     pre_rating: situation.pre_rating });
+          record("situation_replaced", domain.id);
+        }
+      },
+    }],
+    conditional_function: () =>
+      situation.pre_rating !== null && situation.pre_rating >= p.distress_threshold,
+  };
+
+  return {
+    timeline: [
+      mark("situation_start", domain.id),
+      openQuestionInto(fill(txt.elicitation.prompt, { domain: domain.label }), situation),
+      rating,
+      alert,
+    ],
+    loop_function: () => {
+      const again = replacing;
+      replacing = false;
+      return again;
+    },
+  };
 }
 
-/* Test mode: Skip button and F9 key to walk the flow without answering.
+function openQuestionInto(prompt, situation) {
+  return {
+    type: jsPsychSurveyText,
+    questions: [{ prompt: prompt, name: "answer", rows: 8, columns: 70, required: true }],
+    button_label: "Continuar",
+    on_finish: (d) => {
+      situation.text = valueOrNull(d.response && d.response.answer);
+    },
+  };
+}
+
+/* The Saltar button and the F9 key. In the demo they let an evaluator pass the
+ * questionnaires; in test mode they also cut the waits inside the chat.
  *
- * Whatever is skipped stays EMPTY in the CSVs (a skipped PANAS page leaves
- * the subscale without a total), and the run is flagged with test_mode in
+ * Whatever is skipped stays EMPTY in the CSVs (a skipped PANAS page leaves the
+ * subscale without a total), and a test run is flagged with test_mode in
  * _responses.csv, so it is never confused with a real one. */
-function enableTestMode(jsPsych) {
+function enableSkip(jsPsych) {
   const button = document.getElementById("skip");
   button.hidden = false;
 
   function skip() {
-    // Inside the chat the whole episode is not skipped, only the active
-    // wait (the agent latency or the text box), as on the desktop.
     if (document.querySelector("#jspsych-target .chat")) {
-      jsPsychChatEpisode.skip();
+      if (SESSION_CONFIG.test_mode) jsPsychChatEpisode.skip();
       return;
     }
     try {
@@ -291,24 +383,50 @@ function enableTestMode(jsPsych) {
   });
 }
 
+function endScreen(title, body) {
+  document.getElementById("skip").hidden = true;
+  document.getElementById("jspsych-target").innerHTML =
+    `<div class="end-screen"><div class="screen-title">${title}</div>
+     <div class="screen-body">${body}</div></div>`;
+}
+
 /* Builds the four files and sends them to the server. */
-async function submit(jsPsych, generalEvents) {
+async function submit(jsPsych, generalEvents, session) {
+  const txt = texts();
+  if (isDemo()) {
+    endScreen(txt.demo.end_title, txt.demo.end_body);
+    return;
+  }
+  if (session.withdrawn) {
+    endScreen(txt.withdrawn.title, txt.withdrawn.body);
+    return;
+  }
+
   const cfg = SESSION_CONFIG;
-  const target = document.getElementById("jspsych-target");
-  target.innerHTML = "<p class=\"screen-body\">Guardando…</p>";
+  endScreen("Guardando…", "");
 
   const responses = {
     participant_id: cfg.participant_id,
     age: cfg.age,
     sex: cfg.sex,
     sequence: cfg.sequence,
+    domain_sequence: cfg.domain_sequence,
     test_mode: cfg.test_mode,
     llm_model: window.PROTOCOL.prompts.model,
+    suspicion: valueOrNull(session.answers.suspicion),
   };
 
   const baseline = collectMeasures(jsPsych, "baseline");
   for (const [key, value] of Object.entries(baseline)) {
     responses["baseline_" + key] = value;
+  }
+
+  for (const [id, situation] of Object.entries(session.situations)) {
+    responses["situation_" + id] = situation.text;
+    responses["situation_" + id + "_pre_rating"] = situation.pre_rating;
+    responses["situation_" + id + "_alerted"] = situation.alerted;
+    responses["situation_" + id + "_discarded"] =
+      situation.discarded.length ? JSON.stringify(situation.discarded) : null;
   }
 
   const episodes = jsPsych.data.get()
@@ -318,28 +436,27 @@ async function submit(jsPsych, generalEvents) {
   let chat = [];
   let events = generalEvents.slice();
 
-  jsPsych.plan.forEach((entry) => {
+  session.plan.forEach((entry) => {
     const prefix = "ep" + entry.episode + "_";
+    const preRating = session.situations[entry.domain.id].pre_rating;
     responses[prefix + "condition"] = entry.condition;
     responses[prefix + "agent_type"] = entry.agent_type;
     responses[prefix + "feedback"] = entry.feedback;
-    responses[prefix + "topic"] = entry.topic ? entry.topic.id : null;
-    responses[prefix + "interlocutor"] = entry.interlocutor;
-
-    const ep = episodes.find((e) => e.episode === entry.episode);
-    // A skipped screen brings no response. It goes as null, not undefined:
-    // JSON.stringify drops undefined keys and the row would disappear from
-    // the CSV instead of staying empty, as it does on the desktop.
-    responses[prefix + "opinion"] = valueOrNull(ep && ep.opinion);
+    responses[prefix + "domain"] = entry.domain.id;
+    responses[prefix + "pre_rating"] = preRating;
+    responses[prefix + "stood_out"] = valueOrNull(session.answers[prefix + "stood_out"]);
 
     const measures = collectMeasures(jsPsych, "ep" + entry.episode);
     for (const [key, value] of Object.entries(measures)) {
       responses[prefix + key] = value;
     }
 
+    const ep = episodes.find((e) => e.episode === entry.episode);
     if (ep) {
-      const row = Object.assign({}, ep);
-      chat = chat.concat(row.transcript || []);
+      const row = Object.assign({ participant_id: cfg.participant_id,
+                                  pre_rating: preRating }, ep);
+      chat = chat.concat((row.transcript || []).map((message) =>
+        Object.assign({ participant_id: cfg.participant_id }, message)));
       events = events.concat(row.events || []);
       delete row.transcript;
       delete row.events;
@@ -372,19 +489,15 @@ async function submit(jsPsych, generalEvents) {
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const obj = await resp.json();
-    target.innerHTML =
-      `<div class="screen-title">Listo</div>
-       <div class="screen-body">Gracias por participar.
-       Se guardaron ${obj.files.length} archivos.</div>`;
+    endScreen("Listo", `Gracias por participar.
+      Se guardaron ${obj.files.length} archivos.`);
   } catch (e) {
     // A network problem must not take the session down with it.
     const blob = new Blob([JSON.stringify(payload, null, 2)],
                           { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    target.innerHTML =
-      `<div class="screen-title">No se pudieron guardar los datos</div>
-       <div class="screen-body">${e.message}.
-       <a href="${url}" download="session.json">Descargar la sesión</a>
-       y pasársela a quien te está acompañando.</div>`;
+    endScreen("No se pudieron guardar los datos",
+      `${e.message}. <a href="${url}" download="session.json">Descargar la sesión</a>
+       y pasársela a quien te está acompañando.`);
   }
 }

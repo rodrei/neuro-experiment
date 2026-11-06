@@ -1,9 +1,0 @@
-feedback,turn,text
-greeting,0,"Hola. Me dijeron que vamos a charlar un rato. Contame algo que te haya pasado últimamente y que te haya movilizado."
-greeting2,0,"Hola de nuevo. Contame ahora otra situación, distinta de la anterior, que también te haya afectado en el último tiempo."
-validation,1,"Gracias por contarme esto. Se nota que no fue fácil, y tiene todo el sentido que te haya afectado así."
-validation,2,"Lo que sentiste me parece muy entendible. Cualquiera en tu lugar habría reaccionado parecido; no hay nada raro en eso."
-validation,3,"Me alegra que me lo hayas contado. Creo que estás manejando algo bastante pesado y no te estás dando suficiente crédito."
-rejection,1,"Mmm. La verdad es que no me parece tan grave lo que contás. Me cuesta ver por qué te afectó tanto, si lo pienso desde afuera."
-rejection,2,"Sinceramente no le encuentro mucho sentido a esta conversación. Siento que estamos dando vueltas sobre algo bastante menor."
-rejection,3,"Prefiero no seguir con esto. La verdad es que no siento que esta conversación me esté aportando nada."

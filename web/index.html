@@ -16,24 +16,28 @@
   <p>El estudio necesita teclado y una pantalla ancha.</p>
 </div>
 
+<!-- Only in demo mode: stays on every screen. -->
+<div id="demo-badge" hidden></div>
+
 <div id="start">
   <h1>Estudio 1 — Conversaciones</h1>
   <p class="subtitle">
-    Cuatro conversaciones de debate: dos con una persona, dos con una IA.
+    Cuatro conversaciones sobre situaciones personales.
   </p>
+  <p id="demo-note" hidden></p>
 
   <form id="form">
-    <label>
+    <label class="research-only">
       ID de participante
       <input name="participant_id" type="text" value="demo" required>
     </label>
 
-    <label>
+    <label class="research-only">
       Edad
       <input name="age" type="number" min="18" max="99" value="25">
     </label>
 
-    <label>
+    <label class="research-only">
       Sexo
       <select name="sex">
         <option>mujer</option>
@@ -42,9 +46,14 @@
       </select>
     </label>
 
-    <label>
-      Secuencia (cuadrado latino; se sugiere a partir del ID)
+    <label class="research-only">
+      Secuencia de condiciones (se sugiere a partir del ID)
       <select name="sequence" id="sequence"></select>
+    </label>
+
+    <label class="research-only">
+      Secuencia de dominios (se sugiere a partir del ID)
+      <select name="domain_sequence" id="domain_sequence"></select>
     </label>
 
     <label>
@@ -52,7 +61,7 @@
       <input name="access_code" type="password" placeholder="dejar vacío si no hay">
     </label>
 
-    <label class="check-row">
+    <label class="check-row research-only">
       <input name="test_mode" type="checkbox" value="1">
       <span>Modo test: botón <strong>Saltar</strong> y tecla <strong>F9</strong>
       en cada pantalla, y aviso en pantalla cuando un turno del LLM cae al
@@ -61,18 +70,20 @@
 
     <button type="submit" id="begin">Empezar</button>
     <p id="load-status">Cargando el protocolo…</p>
-    <p id="llm-health" class="health pending">Comprobando el LLM…</p>
-    <p class="health-actions">
-      <a href="#" id="llm-retry">Volver a comprobar el LLM</a>
-    </p>
+    <div class="research-only">
+      <p id="llm-health" class="health pending">Comprobando el LLM…</p>
+      <p class="health-actions">
+        <a href="#" id="llm-retry">Volver a comprobar el LLM</a>
+      </p>
+    </div>
   </form>
 </div>
 
 <div id="jspsych-target"></div>
 
 <!-- Outside #jspsych-target on purpose: jsPsych empties that container on
-     every trial. Only shown in test mode. Bottom right, like SKIP_POS on the
-     desktop: nothing is there on any screen. -->
+     every trial. Only shown in test mode and in the demo. Bottom right:
+     nothing is there on any screen. -->
 <button id="skip" type="button" hidden>Saltar (F9)</button>
 
 <script src="/static/vendor/jspsych.js"></script>

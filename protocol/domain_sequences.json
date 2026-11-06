@@ -1,0 +1,6 @@
+{
+  "1": {"human_validation": "work_study", "human_rejection": "friendship", "ai_validation": "family_partner", "ai_rejection": "self"},
+  "2": {"human_validation": "friendship", "human_rejection": "family_partner", "ai_validation": "self", "ai_rejection": "work_study"},
+  "3": {"human_validation": "family_partner", "human_rejection": "self", "ai_validation": "work_study", "ai_rejection": "friendship"},
+  "4": {"human_validation": "self", "human_rejection": "work_study", "ai_validation": "friendship", "ai_rejection": "family_partner"}
+}

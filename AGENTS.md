@@ -4,52 +4,47 @@ This file provides guidance to coding agents (Codex, Claude Code and others) whe
 
 ## What this is
 
-Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Current design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four chat episodes per participant, each about a debate question the participant picks, with **no deception** (the participant is told who they are talking to). The design document is `docs/Pre-entrega #3 — Diseño experimental.md` (Spanish). The spec of the current implementation is `docs/superpowers/specs/2026-09-12-phase1-debate-design.md`.
+Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four episodes of three rounds each, about personal situations from four domains. Every interlocutor is the same LLM; **only the label varies**, and a debriefing reveals it. The assignment is delivered as if the study had run: there are no real participants, and the results come from simulated data.
 
-Two implementations share one content folder: **`web/`** (browser, jsPsych + stdlib `http.server`, the reference for the current design, deployed on fly.io) and **`desktop/`** (PsychoPy Coder, still on the original two-episode cover-story design, to be migrated later).
+The specification lives in the group's Drive folder `entrega final`: «Rodrigo modificas al experimento», the paper's Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». Follow those documents on design questions rather than proposing alternatives.
 
-**Language rule:** code, comments, docstrings, JSON keys, CSV headers, developer docs and commit messages are in **English**. Everything a participant reads (values in `protocol/*.json`, `fallback.csv`, `scripts.csv`, `panas.csv`, and the UI strings in `web/index.html` / the JS) is **Argentine Spanish (voseo)**. The design doc and `docs/superpowers/*` from before the rename stay Spanish.
+It runs in a browser: `web/` (jsPsych + stdlib `http.server`, deployed on fly.io in demo mode).
+
+**Language rule:** code, comments, docstrings, JSON keys, CSV headers, developer docs and commit messages are in **English**. Everything a participant reads (values in `protocol/*.json`, `fallback.csv`, `panas.csv`, and the UI strings in `web/index.html` / the JS) is **Argentine Spanish (voseo)**. The design doc and `docs/superpowers/*` from before the rename stay Spanish.
 
 ## How to run
 
-- Web: `python3 -m web.server.app` → http://localhost:8080. Key in `OPENROUTER_API_KEY` or `openrouter_key.txt` (gitignored). Env: `PORT`, `DATA_DIR`, `ACCESS_CODE`, `LLM_TIMEOUT`, `RATE_LIMIT_PER_MINUTE`.
-- Desktop: open `desktop/study1.py` in PsychoPy Coder and Run, or `PYTHONHOME=/Applications/PsychoPy.app/Contents/Resources PYTHONPATH=/Applications/PsychoPy.app/Contents/Resources/lib/python3.11 /Applications/PsychoPy.app/Contents/MacOS/python desktop/study1.py`. Ctrl+Q quits. `DEMO_MODE` / `TEST_MODE` in `desktop/config.py`.
-- Tests (system Python, no network, no PsychoPy): `python3 -m unittest discover -s common -t . -v` and `python3 -m unittest discover -s web -t . -v`. Desktop: `py_compile desktop/*.py` with PsychoPy's Python; the interactive walk is manual.
-- Browser check: `node web/e2e/run_flow.mjs --url <url> [--code X] [--shots DIR]` (global Playwright). Run it locally and after every deploy.
-- Console chat to iterate on the prompts: `python3 -m common.llm_agent`.
+- Web: `python3 -m web.server.app` → http://localhost:8080. Key in `OPENROUTER_API_KEY` or `openrouter_key.txt` (gitignored). Env: `DEMO_MODE` (default `1`; `0` is the full session with its CSVs), `PORT`, `DATA_DIR`, `ACCESS_CODE`, `LLM_TIMEOUT`, `RATE_LIMIT_PER_MINUTE`, `MAX_TURNS_PER_DAY`.
+- Tests (system Python, no network): `python3 -m unittest discover -s common -t . -v` and `python3 -m unittest discover -s web -t . -v`.
+- Browser check: `node web/e2e/run_flow.mjs --url <url> [--code X] [--shots DIR]` (global Playwright; adapts to the server's mode). Run it locally in both modes and after every deploy.
+- Console chat to iterate on the prompt: `python3 -m common.llm_agent`.
 - Deploy: `fly deploy --app neuro-estudio1-demo` from the repo root (see `web/README.md`).
 
 ## Architecture
 
-Dependency direction: `web/`, `desktop/` → `common/` → `protocol/`, never back.
+Dependency direction: `web/` → `common/` → `protocol/`, never back.
 
-**`protocol/`** — content as data: `texts.json` (screens), `scales.json`, `parameters.json`, `markers.json`, `prompts.json` (`debate` for the web, `situation` for the desktop), `topics.json`, `interlocutors.json`, `sequences.json` (Williams Latin square), `fallback.csv` (web fallback lines), `scripts.csv` (desktop scripted messages), `panas.csv`. Entries only the desktop reads are named `desktop_*` or listed in `protocol/README.md`. **Edit content here, never in code.** Run the common tests afterwards.
+**`protocol/`** — content as data: `texts.json` (screens), `scales.json`, `instruments.json` (UCLA-3, ECR), `parameters.json`, `markers.json`, `prompts.json` (Annex A2), `domains.json`, `sequences.json` (Williams Latin square), `domain_sequences.json` (independent Latin square), `fallback.csv` (fallback lines, also the prompt's style examples), `panas.csv`. **Edit content here, never in code.** Run the common tests afterwards.
 
-**`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer shared by both platforms; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
+**`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
 
-**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`; stateless proxy, the browser sends the full history each turn), `js/experiment.js` (timeline + submission), `js/chat-plugin.js` (one episode per trial, pinned topic card, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
+**`web/`** — `server/app.py` (routes: `/api/protocol`, `/api/health`, `/api/turn`, `/api/data`; stateless proxy, the browser sends the full history each turn), `js/experiment.js` (timeline, row assignment, submission), `js/chat-plugin.js` (one episode per trial, experimenter hotkey, fallback banner in test mode), `js/scales.js`, `static/styles.css` (screens centred via a full-viewport flex `#jspsych-target`), `e2e/run_flow.mjs`.
 
-**`desktop/`** — `study1.py`, `chat.py` (TextBox2 bubbles built once and cached), `scales.py`, `markers.py` (`EventLog`: CSV always, optional LSL/serial/parallel), `config.py`. The modules add the repo root to `sys.path` to import `common`.
+**`simulation/`** — the simulated data behind the paper's Results, independent of the rest and with its own dependencies (numpy, pandas, scipy, openpyxl). A working copy of Elena's scripts, keeping their Spanish names so they can be diffed against hers; her originals on Drive are never modified. See `simulation/README.md`.
 
-Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`, `_chat`), web prefix `S1_<id>_seq<n>_<stamp>`, desktop prefix `S1_<id>_<condition>_<stamp>`.
+Output: four CSVs per session in `data/` (`_events`, `_responses`, `_behavioral`, `_chat`), prefix `S1_<id>_seq<n>_<stamp>`. In demo mode nothing is written.
 
 ## Design invariants (do not break)
 
-Web (current design):
-1. The LLM writes every turn from the `debate` prompt with the chosen question and the role; on failure the turn comes from `fallback.csv` with `origin = fallback` and a reason.
-2. Agent latency is deterministic: `latency_base + latency_per_char × chars`, capped — applied after generation.
-3. The opinion is written inside the chat under the pinned question; no earlier screen asks for it.
-4. Baseline has no authenticity items.
-5. Measures order: SUDS → SAM → authenticity → PANAS.
-6. Every relevant event leaves a marker with a timestamp (`markers.json`).
-7. Nothing asks the participant whether the interlocutor was a person or an AI; interlocutors are announced honestly before each episode. In phase 1 every episode is still answered by the LLM; the person-labelled episodes get a real person in phase 2.
-
-Desktop (original design, until migrated): scripted agent identical across Human/AI, situation told inside the chat, cover story is the only manipulation, scripts balanced in length (`test_turns_are_balanced_in_length`).
-
-## PsychoPy trap: sliders
-
-The PANAS grid uses `style="rating"`. Never `"radio"`: every radio slider is `categorical=True` and `.rating` returns labels — `labels=None` raises `TypeError` on the first click; `labels=[""]*5` stores `''` silently.
+1. The LLM writes every turn from one fixed prompt; if the API does not answer in 20 s or the reply is empty, the turn comes from `fallback.csv` with `origin = fallback` and a reason.
+2. **The model never receives the label.** `/api/turn` takes only the feedback type and the conversation.
+3. Agent latency is deterministic: `latency_base + latency_per_char × chars`, capped — applied after generation.
+4. Nothing asks about the interlocutor's identity before the final block; the per-episode naturalness item does not mention it. In the final block, credibility comes before the open questions.
+5. Post-episode order: PANAS → SAM → SUDS → authenticity → manipulation checks → naturalness. The baseline has no interlocutor items.
+6. Every message is stored verbatim with origin, shown latency, length and turn number.
+7. Agent messages are stamped when they reach the screen, not when requested or when the typing indicator starts. Every relevant event leaves a marker (`markers.json`).
+8. When the demo says nothing is recorded, `/api/data` must refuse to store.
 
 ## Known pending items
 
-See README "Before running participants": desktop migration to the debate design, review of topics and roles with the group, PANAS translation check, pictorial SAM, marker backend, access-code rotation after demos.
+See README "Still pending": UCLA-3 and ECR wording, group review of the drafted Spanish, PANAS translation check, access-code rotation after demos.

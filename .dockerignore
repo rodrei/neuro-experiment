@@ -1,8 +1,5 @@
-# The desktop experiment does not go in the container: it needs PsychoPy and
-# a display, and the web demo does not use it.
-desktop/
-screenshots/
 docs/
+simulation/
 data/
 
 # Never into the image: the key goes through fly secrets.

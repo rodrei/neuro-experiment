@@ -1,24 +1,33 @@
-/* Chat plugin: a whole debate episode in a single jsPsych trial.
+/* Chat plugin: a whole episode in a single jsPsych trial.
  *
- *   pinned topic card (not a bubble) -> the participant writes their opinion
- *   (minimum number of characters) -> 3 LLM turns with a free reply in
- *   between -> final free-reply window.
+ *   fixed opening naming the domain -> three rounds, each: the participant
+ *   writes, the agent answers -> the last message stays on screen for a fixed
+ *   hold -> Continuar.
  *
  * What must hold no matter what:
  *
- *  - Bubbles are only ever real messages. The chosen question lives in a
- *    pinned card under the bar, with no author and no bubble class.
- *  - The LATENCY IS DETERMINISTIC (invariant 2): a function of the message
- *    length, not of chance, and it comes from protocol/parameters.json. Two
- *    people who receive the same message wait exactly the same, so the wait
- *    cannot differ between the person / AI conditions.
+ *  - The model only ever receives the feedback type and the conversation.
+ *    The agent type lives in the header label, never in the request: the
+ *    content cannot depend on how the agent is being presented.
+ *  - The LATENCY IS DETERMINISTIC: a function of the message length, not of
+ *    chance, and it comes from protocol/parameters.json. Two people who
+ *    receive the same message wait exactly the same, so the wait cannot
+ *    differ between the person / AI conditions.
  *  - The generation happens WHILE it says "en línea", and the latency is
  *    applied AFTERWARDS, on the length of the generated text. Otherwise the
  *    API time would add to the wait and give it away.
- *  - If a turn falls back to a fixed line, the origin and the reason go to
- *    the transcript; in test mode a banner shows the reason on screen.
- *  - Not answering is a data point: the final window may stay empty and that
- *    is recorded as [sin respuesta], not as an error.
+ *  - Each agent message is stamped when it reaches the screen: that event is
+ *    what the physiological response windows are locked to, not the request
+ *    or the start of the "escribiendo…" indicator.
+ *  - Every message goes to the transcript verbatim, with its origin. If a turn
+ *    falls back to a fixed line the reason goes too; in test mode a banner
+ *    shows it on screen.
+ *  - Not answering is a data point: it is recorded as [sin respuesta], not as
+ *    an error.
+ *
+ * Experimenter intervention: Ctrl+Shift+E pauses the chat. The experimenter
+ * can type the agent's next message (origin "experimenter"), resume, or end
+ * the episode. Whatever they do, the episode is flagged.
  */
 
 var jsPsychChatEpisode = (function (jspsych) {
@@ -31,17 +40,16 @@ var jsPsychChatEpisode = (function (jspsych) {
       condition: { type: jspsych.ParameterType.STRING },      // e.g. ai_rejection
       agent_type: { type: jspsych.ParameterType.STRING },     // human | ai
       feedback: { type: jspsych.ParameterType.STRING },       // validation | rejection
-      interlocutor: { type: jspsych.ParameterType.STRING },   // name
+      domain: { type: jspsych.ParameterType.OBJECT },         // {id, label}
       label: { type: jspsych.ParameterType.STRING },          // chat bar
-      topic: { type: jspsych.ParameterType.OBJECT },          // {id, category, question}
       access_code: { type: jspsych.ParameterType.STRING },
       test_mode: { type: jspsych.ParameterType.BOOL },
     },
   };
 
-  /* Test mode. The active wait (the agent latency or the participant's box)
-   * leaves here how to skip itself; ChatEpisode.skip() calls it. Outside
-   * test mode nobody invokes it. */
+  /* The active wait (the agent latency or the participant's box) leaves here
+   * how to cut itself short; ChatEpisode.skip() calls it in test mode, and the
+   * experimenter's FIN calls it too. */
   let currentSkip = null;
 
   function wait(ms) {
@@ -53,6 +61,15 @@ var jsPsychChatEpisode = (function (jspsych) {
         resolve();
       }
       currentSkip = done;
+    });
+  }
+
+  /* Resolves in the frame that paints what was just added to the DOM. The
+   * timer covers a hidden tab, where animation frames do not fire. */
+  function nextPaint() {
+    return new Promise((resolve) => {
+      requestAnimationFrame(resolve);
+      setTimeout(resolve, 100);
     });
   }
 
@@ -74,15 +91,25 @@ var jsPsychChatEpisode = (function (jspsych) {
       const context = {
         episode: trial.episode,
         condition: trial.condition,
-        interlocutor: trial.interlocutor,
-        topic: trial.topic.id,
-      };
-      const data = Object.assign({
         agent_type: trial.agent_type,
         feedback: trial.feedback,
-        fallback_turns: 0,
+        domain: trial.domain.id,
+      };
+      const data = Object.assign({
+        rounds_completed: 0,
+        participant_messages: 0,
         replies_timed_out: 0,
+        fallback_turns: 0,
+        experimenter_turns: 0,
+        experimenter_intervention: 0,
+        agent_turns: 0,
+        agent_chars_total: 0,
+        total_shown_latency_s: 0,
       }, context);
+
+      let turn = 0;                // message counter within the episode
+      let overrideLine = null;     // the experimenter's next agent message
+      let endRequested = false;    // the experimenter ended the episode
 
       const now = () => (performance.now() - t0) / 1000;
 
@@ -103,58 +130,58 @@ var jsPsychChatEpisode = (function (jspsych) {
             <div class="chat-status" id="chat-status">en línea</div>
           </div>
           <div class="fallback-banner" id="fallback-banner" hidden></div>
-          <div class="topic-pinned" id="topic-pinned">
-            <div class="topic-pinned-title">${t.topic_card.title}</div>
-            <div class="topic-pinned-question">${trial.topic.question}</div>
-            <div class="topic-pinned-hint">${t.topic_card.hint}</div>
-          </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input">
-            <textarea id="chat-text" placeholder="Escribí tu mensaje…"></textarea>
-            <button id="chat-send" type="button">Enviar</button>
+            <textarea id="chat-text" disabled></textarea>
+            <button id="chat-send" type="button" disabled>Enviar</button>
+            <button id="chat-continue" type="button" hidden>Continuar</button>
           </div>
           <div class="chat-help" id="chat-help">Enter para enviar</div>
         </div>`;
+      document.body.classList.add("in-chat");
 
       const elMessages = display.querySelector("#chat-messages");
       const elStatus = display.querySelector("#chat-status");
       const elText = display.querySelector("#chat-text");
       const elSend = display.querySelector("#chat-send");
+      const elContinue = display.querySelector("#chat-continue");
       const elHelp = display.querySelector("#chat-help");
       const elBanner = display.querySelector("#fallback-banner");
-      const elPinned = display.querySelector("#topic-pinned");
 
-      function addBubble(author, text, origin, reason, latency) {
+      function addBubble(author, text) {
         const div = document.createElement("div");
         div.className = "bubble " + author;
         div.textContent = text;
         elMessages.appendChild(div);
         elMessages.scrollTop = elMessages.scrollHeight;
-        const row = Object.assign({
-          author: author,
-          text: text,
-          origin: origin || (author === "participant" ? "participant" : "llm"),
-          fallback_reason: reason || null,
+      }
+
+      function record(fields) {
+        turn += 1;
+        transcript.push(Object.assign({
+          turn: turn,
+          chars: fields.text.length,
+          fallback_reason: null,
+          shown_latency_s: null,
+          response_latency_s: null,
           t_experiment_s: Number(now().toFixed(4)),
-          latency_s: (latency === undefined || latency === null)
-            ? null : Number(latency.toFixed(3)),
-        }, context);
-        transcript.push(row);
+          t_unix: Date.now() / 1000,
+        }, context, fields));
       }
 
       /* Deterministic: same message -> same wait, in both conditions. */
       function latencyOf(text) {
         const l = p.latency_base + text.length * p.latency_per_char;
-        return Math.min(l, p.latency_max) * 1000;
+        return Math.min(l, p.latency_max);
       }
 
       /* The experimenter sees why a turn fell back; participants never do. */
-      function showFallback(turn, reason) {
+      function showFallback(round, reason) {
         data.fallback_turns += 1;
         if (!trial.test_mode) return;
         elBanner.hidden = false;
         elBanner.className = "fallback-banner error";
-        elBanner.textContent = `Fallback (turno ${turn}): ${reason}`;
+        elBanner.textContent = `Fallback (ronda ${round}): ${reason}`;
       }
 
       function showRecovered() {
@@ -174,8 +201,6 @@ var jsPsychChatEpisode = (function (jspsych) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               feedback: trial.feedback,
-              name: trial.interlocutor,
-              question: trial.topic.question,
               history: history,
               fallback_line: line,
               access_code: trial.access_code,
@@ -195,65 +220,62 @@ var jsPsychChatEpisode = (function (jspsych) {
         }
       }
 
-      async function agentSays(text, markerLabel, origin, reason) {
+      async function agentSays(text, markerLabel, origin, reason, round) {
+        const shown = latencyOf(text);
         elStatus.textContent = "en línea";
         await wait(p.min_reading_time * 1000);
         elStatus.textContent = "escribiendo…";
-        await wait(latencyOf(text));
+        await wait(shown * 1000);
         elStatus.textContent = "en línea";
-        addBubble("agent", text, origin, reason);
-        if (markerLabel) mark(markerLabel, text.slice(0, 60));
+        addBubble("agent", text);
+        await nextPaint();
+        record({ author: "agent", text: text, origin: origin,
+                 fallback_reason: reason || null, round: round,
+                 shown_latency_s: Number(shown.toFixed(3)) });
+        mark(markerLabel, "round=" + round);
         history.push({ role: "assistant", content: text });
+        data.total_shown_latency_s =
+          Number((data.total_shown_latency_s + shown).toFixed(3));
       }
 
-      /* Returns {text, latency}. If the timeout runs out with nothing
-         written, returns text "" and latency null: not answering is data. */
+      /* Returns once the participant has sent or the time ran out. */
       function waitForParticipant(options) {
-        const minChars = options.minChars || 0;
-        const marker = options.marker || "participant_message";
-        const limit = options.timeout;
+        const round = options.round;
         const filler = options.filler || "";
 
         return new Promise((resolve) => {
           const start = performance.now();
           elText.value = "";
+          elText.placeholder = options.placeholder;
           elText.disabled = false;
           elSend.disabled = false;
           elText.focus();
 
           let timer = null;
 
-          const updateHelp = () => {
-            const clean = elText.value.trim();
-            if (minChars && clean.length < minChars) {
-              elHelp.textContent =
-                `Al menos ${minChars} caracteres (llevás ${clean.length})`;
-            } else {
-              elHelp.textContent = "Enter para enviar";
-            }
-          };
-
-          const finish = (text, latency) => {
-            elText.removeEventListener("input", updateHelp);
+          const finish = () => {
             elText.removeEventListener("keydown", onKey);
-            elSend.removeEventListener("click", onSend);
+            elSend.removeEventListener("click", send);
             if (timer) clearTimeout(timer);
             currentSkip = null;
             elText.value = "";
             elText.disabled = true;
             elSend.disabled = true;
-            elHelp.textContent = "Enter para enviar";
-            resolve({ text: text, latency: latency });
+            resolve();
           };
 
           const send = () => {
             const clean = elText.value.trim();
-            if (!clean || clean.length < minChars) return;
+            if (!clean) return;
             const latency = (performance.now() - start) / 1000;
-            addBubble("participant", clean, "participant", null, latency);
-            mark(marker, "latency=" + latency.toFixed(2));
+            addBubble("participant", clean);
+            record({ author: "participant", text: clean, origin: "participant",
+                     round: round,
+                     response_latency_s: Number(latency.toFixed(3)) });
+            mark("participant_message", "latency=" + latency.toFixed(2));
             history.push({ role: "user", content: clean });
-            finish(clean, latency);
+            data.participant_messages += 1;
+            finish();
           };
 
           const onKey = (e) => {
@@ -262,43 +284,30 @@ var jsPsychChatEpisode = (function (jspsych) {
               send();
             }
           };
-          const onSend = () => send();
 
-          elText.addEventListener("input", updateHelp);
           elText.addEventListener("keydown", onKey);
-          elSend.addEventListener("click", onSend);
-          updateHelp();
+          elSend.addEventListener("click", send);
 
           const noReply = () => {
-            mark(marker, "no reply");
+            mark("participant_message", "no reply");
             data.replies_timed_out += 1;
-            transcript.push(Object.assign({
-              author: "participant",
-              text: "[sin respuesta]",
-              origin: "participant",
-              fallback_reason: null,
-              t_experiment_s: Number(now().toFixed(4)),
-              latency_s: null,
-            }, context));
+            record({ author: "participant", text: "[sin respuesta]",
+                     origin: "participant", round: round, chars: 0 });
             history.push({ role: "user", content: "(no responde)" });
-            finish("", null);
+            finish();
           };
 
-          if (limit) {
-            timer = setTimeout(() => {
-              const clean = elText.value.trim();
-              if (clean && clean.length >= minChars) return send();
-              noReply();
-            }, limit * 1000);
-          }
+          timer = setTimeout(() => {
+            if (elText.value.trim()) return send();
+            noReply();
+          }, options.timeout * 1000);
 
-          // Test mode: sends whatever there is; for the opening opinion
-          // (the step that passes a filler) an empty box is filled with the
-          // protocol's filler so the conversation has an opinion to react to.
+          // Test mode sends whatever there is; the opening round, which
+          // passes a filler, fills an empty box so the conversation has
+          // something to react to. Ending the episode never invents text.
           currentSkip = () => {
-            const clean = elText.value.trim();
-            if (clean && clean.length >= minChars) return send();
-            if (filler) {
+            if (elText.value.trim()) return send();
+            if (filler && !endRequested) {
               elText.value = filler;
               return send();
             }
@@ -306,6 +315,23 @@ var jsPsychChatEpisode = (function (jspsych) {
           };
         });
       }
+
+      function intervene(e) {
+        if (!(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "e")) return;
+        e.preventDefault();
+        const answer = window.prompt(t.chat.experimenter_prompt);
+        if (answer === null) return;
+        data.experimenter_intervention = 1;
+        const clean = answer.trim();
+        mark("experimenter_intervention", clean.toUpperCase() === "FIN" ? "end" : "");
+        if (clean.toUpperCase() === "FIN") {
+          endRequested = true;
+          if (currentSkip) currentSkip();
+        } else if (clean) {
+          overrideLine = clean;
+        }
+      }
+      document.addEventListener("keydown", intervene);
 
       // ---------------------------------------------------------------
       // The episode
@@ -315,46 +341,63 @@ var jsPsychChatEpisode = (function (jspsych) {
       (async function run() {
         mark("episode_start", trial.episode + "_" + trial.condition);
 
-        // The participant opens: their opinion on the pinned question. Any
-        // non-empty message counts; no minimum length.
-        const opinion = await waitForParticipant({
-          timeout: p.situation_timeout,
-          marker: "opinion_sent",
-          filler: p.test_filler_opinion,
-        });
-        data.opinion = opinion.text;
-        data.opinion_chars = opinion.text.length;
-        data.opinion_latency_s = opinion.latency;
-        elPinned.classList.add("answered");
+        await agentSays(fill(t.chat.opening, { domain: trial.domain.label }),
+                        "opening_message", "opening", null, 0);
 
-        for (const turn of [1, 2, 3]) {
-          // Generated while the screen says "en línea"; the latency is
-          // applied afterwards, on the length of the generated text.
-          const [text, origin, reason] = await requestTurn(
-            fallbackLine(trial.feedback, turn));
-          if (origin === "fallback") showFallback(turn, reason);
-          else showRecovered();
-          await agentSays(text, "agent_message_" + turn, origin, reason);
+        for (let round = 1; round <= p.rounds && !endRequested; round++) {
+          mark("round_start_" + round, trial.condition);
 
-          if (turn < 3) {
-            const r = await waitForParticipant({ timeout: 90 });
-            data["reply_" + turn] = r.text;
-            data["reply_" + turn + "_chars"] = r.text.length;
-            data["reply_latency_" + turn] = r.latency;
+          await waitForParticipant({
+            round: round,
+            timeout: round === 1 ? p.situation_timeout : p.reply_timeout,
+            placeholder: round === 1 ? t.chat.placeholder_situation
+                                     : t.chat.placeholder_feeling,
+            filler: round === 1 ? p.test_filler_text : "",
+          });
+          if (endRequested) break;
+
+          let text, origin, reason;
+          if (overrideLine !== null) {
+            text = overrideLine;
+            origin = "experimenter";
+            reason = null;
+            overrideLine = null;
+            data.experimenter_turns += 1;
+          } else {
+            // Generated while the screen says "en línea"; the latency is
+            // applied afterwards, on the length of the generated text.
+            [text, origin, reason] = await requestTurn(
+              fallbackLine(trial.feedback, round));
+            if (origin === "fallback") showFallback(round, reason);
+            else showRecovered();
           }
+          await agentSays(text, "agent_message_" + round, origin, reason, round);
+          data.agent_turns += 1;
+          data.agent_chars_total += text.length;
+          data.rounds_completed = round;
         }
 
-        // Final window: answering or not is a behavioral DV of the design.
-        mark("free_reply_start", trial.condition);
-        const final = await waitForParticipant({
-          timeout: p.free_reply_window,
+        // The last message stays up for a fixed time, so the response window
+        // locked to it is not cut by the measures.
+        elHelp.textContent = t.chat.ended;
+        await wait(p.final_message_hold * 1000);
+        elSend.hidden = true;
+        elContinue.hidden = false;
+        await new Promise((resolve) => {
+          const done = () => {
+            currentSkip = null;
+            resolve();
+          };
+          elContinue.addEventListener("click", done);
+          currentSkip = done;
         });
-        data.final_reply = final.text;
-        data.final_latency_s = final.latency;
-        data.replied_at_end = final.text ? 1 : 0;
 
         mark("episode_end", trial.episode + "_" + trial.condition);
 
+        document.removeEventListener("keydown", intervene);
+        document.body.classList.remove("in-chat");
+        data.agent_chars_mean = data.agent_turns
+          ? Number((data.agent_chars_total / data.agent_turns).toFixed(1)) : null;
         data.transcript = transcript;
         data.events = events;
         self.jsPsych.finishTrial(data);

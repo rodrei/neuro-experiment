@@ -1,29 +1,74 @@
 {
   "suds": {
     "prompt": "¿Cuánto malestar sentís en este momento?",
-    "ticks": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-    "labels": ["0\nsin malestar", "", "", "", "", "50", "", "", "", "", "100\nmalestar máximo"]
+    "ticks": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "labels": ["0\nsin malestar", "", "", "", "", "5", "", "", "", "", "10\nmalestar máximo"]
   },
   "sam_valence": {
     "prompt": "En este momento, ¿cómo te sentís?",
     "ticks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    "labels": ["1\nmuy mal", "", "", "", "5\nneutral", "", "", "", "9\nmuy bien"],
-    "images": ["val_1.png", "val_2.png", "val_3.png", "val_4.png", "val_5.png", "val_6.png", "val_7.png", "val_8.png", "val_9.png"]
+    "labels": ["1\nmuy mal", "", "", "", "5\nneutral", "", "", "", "9\nmuy bien"]
   },
   "sam_arousal": {
     "prompt": "En este momento, ¿qué tan activada/o o alterada/o te sentís?",
     "ticks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    "labels": ["1\nmuy calma/o", "", "", "", "5\nintermedio", "", "", "", "9\nmuy activada/o"],
-    "images": ["aro_1.png", "aro_2.png", "aro_3.png", "aro_4.png", "aro_5.png", "aro_6.png", "aro_7.png", "aro_8.png", "aro_9.png"]
+    "labels": ["1\nmuy calma/o", "", "", "", "5\nintermedio", "", "", "", "9\nmuy activada/o"]
   },
   "authenticity": {
     "items": [
       {"key": "auth_1", "prompt": "Sentí que mi interlocutor entendió genuinamente lo que le conté.", "reverse": false},
       {"key": "auth_2", "prompt": "La respuesta que recibí me pareció auténtica.", "reverse": false},
-      {"key": "auth_3", "prompt": "Sentí que a mi interlocutor le importaba lo que pienso.", "reverse": false}
+      {"key": "auth_3", "prompt": "Sentí que a mi interlocutor le importaba lo que me pasaba.", "reverse": false}
     ],
     "ticks": [1, 2, 3, 4, 5, 6, 7],
     "labels": ["1\nmuy en desacuerdo", "", "", "", "", "", "7\nmuy de acuerdo"]
+  },
+  "manipulation_check": {
+    "items": [
+      {"key": "mc_understood", "component": "invalidation", "prompt": "Sentí que mi interlocutor entendió lo que me pasaba."},
+      {"key": "mc_made_sense", "component": "invalidation", "prompt": "Sentí que mi interlocutor consideró que mi reacción tenía sentido."},
+      {"key": "mc_interested", "component": "withdrawal", "prompt": "Sentí que mi interlocutor tenía interés en seguir la conversación."},
+      {"key": "mc_wanted_to_end", "component": "withdrawal", "prompt": "Sentí que mi interlocutor quería terminar la conversación."}
+    ],
+    "ticks": [1, 2, 3, 4, 5, 6, 7],
+    "labels": ["1\nmuy en desacuerdo", "", "", "", "", "", "7\nmuy de acuerdo"]
+  },
+  "naturalness": {
+    "prompt": "¿Cuán natural te resultó la conversación?",
+    "ticks": [1, 2, 3, 4, 5, 6, 7],
+    "labels": ["1\nmuy artificial o forzada", "", "", "", "", "", "7\nmuy natural"]
+  },
+  "pre_rating": {
+    "prompt": "Ahora, en una escala de 0 a 10, ¿cuánto malestar te genera pensar en esta situación en este momento?",
+    "ticks": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "labels": ["0\nninguno", "", "", "", "", "", "", "", "", "", "10\nel máximo que puedas imaginar"]
+  },
+  "credibility": {
+    "prompt": "En la conversación sobre <strong>{domain}</strong>, ¿con quién creés que hablaste?",
+    "ticks": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    "labels": ["0\ncon total seguridad una inteligencia artificial", "", "", "", "", "", "", "", "", "", "100\ncon total seguridad una persona"]
+  },
+  "ai_use": {
+    "items": [
+      {
+        "key": "ai_use_frequency",
+        "prompt": "¿Con qué frecuencia usás compañeros de inteligencia artificial, es decir, aplicaciones para conversar o hacer compañía (como Replika o Character.AI)?",
+        "ticks": [1, 2, 3, 4, 5],
+        "labels": ["1\nnunca", "", "", "", "5\ntodos los días"]
+      },
+      {
+        "key": "ai_use_tenure",
+        "prompt": "¿Hace cuánto tiempo que los usás?",
+        "ticks": [0, 1, 2, 3, 4],
+        "labels": ["0\nnunca los usé", "1\nmenos de un mes", "2\nde 1 a 6 meses", "3\nde 6 meses a 2 años", "4\nmás de 2 años"]
+      },
+      {
+        "key": "ai_use_intensity",
+        "prompt": "Cuando los usás, ¿cuánto sentís que dependés de ellos para sentirte acompañada/o?",
+        "ticks": [1, 2, 3, 4, 5, 6, 7],
+        "labels": ["1\nnada", "", "", "", "", "", "7\nmuchísimo"]
+      }
+    ]
   },
   "panas": {
     "instruction": "Indicá en qué medida te sentís así EN ESTE MOMENTO.",

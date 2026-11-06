@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Writing of the output CSVs, shared by the desktop and the web.
+Writing of the output CSVs.
 
 The format is the contract with the analysis scripts: four files per
-participant, prefixed S1_<id>_<tag>_<stamp>. It lives here so the two
-platforms cannot diverge in their columns.
+participant, prefixed S1_<id>_<tag>_<stamp>.
 
 Standard library only.
 """
@@ -13,9 +12,10 @@ import csv
 import os
 
 EVENT_FIELDS = ["t_experiment_s", "t_unix", "code", "label", "detail"]
-CHAT_FIELDS = ["episode", "condition", "interlocutor", "topic", "author",
-               "text", "origin", "fallback_reason", "t_experiment_s",
-               "latency_s"]
+CHAT_FIELDS = ["participant_id", "episode", "condition", "agent_type",
+               "feedback", "domain", "round", "turn", "author", "text",
+               "chars", "origin", "fallback_reason", "t_experiment_s",
+               "t_unix", "shown_latency_s", "response_latency_s"]
 
 
 def base_name(participant_id, tag, stamp):
@@ -49,9 +49,8 @@ def write_behavioral(path, rows):
 
 
 def write_chat(path, rows):
-    """Full transcript, with the origin (and the fallback reason, if any) of
-    every agent message. The desktop rows have no episode context: those
-    columns stay empty there."""
+    """Full transcript, verbatim: one row per message, with its origin (and
+    the fallback reason, if any)."""
     with _open(path) as f:
         w = csv.DictWriter(f, fieldnames=CHAT_FIELDS, extrasaction="ignore")
         w.writeheader()
@@ -60,7 +59,7 @@ def write_chat(path, rows):
 
 
 def write_events(path, rows):
-    """Same schema as the log EventLog writes on the desktop."""
+    """The timestamped event log, one row per marker."""
     with _open(path) as f:
         w = csv.DictWriter(f, fieldnames=EVENT_FIELDS, extrasaction="ignore")
         w.writeheader()
@@ -68,20 +67,14 @@ def write_events(path, rows):
             w.writerow(row)
 
 
-def write_all(folder, base, responses, behavioral, chat, events=None):
-    """Writes a session's CSVs and returns the paths.
-
-    `events` is optional because the desktop streams it while running (see
-    markers.EventLog); the web collects the log in memory and sends it at the
-    end.
-    """
+def write_all(folder, base, responses, behavioral, chat, events):
+    """Writes a session's four CSVs and returns the paths."""
     os.makedirs(folder, exist_ok=True)
     paths = []
     pairs = [("_responses.csv", write_responses, responses),
              ("_behavioral.csv", write_behavioral, behavioral),
-             ("_chat.csv", write_chat, chat)]
-    if events is not None:
-        pairs.append(("_events.csv", write_events, events))
+             ("_chat.csv", write_chat, chat),
+             ("_events.csv", write_events, events)]
     for suffix, writer, data in pairs:
         path = os.path.join(folder, base + suffix)
         writer(path, data)

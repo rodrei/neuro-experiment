@@ -1,0 +1,20 @@
+{
+  "ucla3": {
+    "title": "de soledad (UCLA-3)",
+    "n_items": 20,
+    "instruction": "",
+    "ticks": [],
+    "anchors": [],
+    "items_per_page": 10,
+    "items": []
+  },
+  "ecr": {
+    "title": "de apego (ECR)",
+    "n_items": 36,
+    "instruction": "",
+    "ticks": [],
+    "anchors": [],
+    "items_per_page": 10,
+    "items": []
+  }
+}

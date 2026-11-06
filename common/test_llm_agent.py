@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Tests of common/llm_agent.py. They run with the system Python, without
-network and without PsychoPy:  python3 -m unittest common.test_llm_agent -v
+network:  python3 -m unittest common.test_llm_agent -v
 
 The transport (the HTTP call to OpenRouter) is injected, so everything else
 is tested here: history assembly, role per condition, fallback to the
@@ -12,9 +12,10 @@ import os
 import ssl
 import tempfile
 import threading
+import time
 import unittest
 
-from common import llm_agent
+from common import llm_agent, protocol
 from common.llm_agent import (LLMAgent, _ssl_context, load_api_key,
                               clean_reply)
 
@@ -63,7 +64,8 @@ class TestReply(unittest.TestCase):
              ("user", "Gracias por escucharme.")])
 
     def test_the_condition_role_is_in_the_system_prompt(self):
-        for feedback, word in [("validation", "valid"), ("rejection", "rechaz")]:
+        for feedback, word in [("validation", "validar"),
+                               ("rejection", "invalidar")]:
             transport = fixed_transport("ok")
             agent = LLMAgent(feedback, transport=transport)
             agent.hear("hola")
@@ -148,38 +150,10 @@ class TestCleanup(unittest.TestCase):
         self.assertEqual(len(cut), 100)
 
 
-class TestReplyInThread(unittest.TestCase):
-    """The request runs in the background so the screen can keep drawing
-    ("en línea") while the API is awaited."""
-
-    def test_does_not_block_and_delivers_the_same_result(self):
-        started = threading.Event()
-        release = threading.Event()
-
-        def slow_transport(payload):
-            started.set()
-            release.wait(timeout=5)
-            return "slow reply"
-
-        agent = LLMAgent("validation", transport=slow_transport)
-        agent.hear("hola")
-
-        pending = agent.reply_in_thread(fallback_line="fallback")
-        self.assertTrue(started.wait(timeout=5))
-        self.assertFalse(pending.ready())   # the transport is still hanging
-
-        release.set()
-        self.assertEqual(pending.result(), ("slow reply", "llm", None))
-        self.assertTrue(pending.ready())
-        self.assertEqual(agent.history[-1]["content"], "slow reply")
-
-
 class TestSSLContext(unittest.TestCase):
-    """PsychoPy's embedded Python does not find the CA bundle where OpenSSL
-    looks: without a context of our own every call to OpenRouter dies with
-    CERTIFICATE_VERIFY_FAILED and the turn falls back. These tests fail with
-    the default context when run with PsychoPy's Python, which is where it
-    matters."""
+    """Some Python builds do not find the CA bundle where OpenSSL looks:
+    without a context of our own every call to OpenRouter dies with
+    CERTIFICATE_VERIFY_FAILED and the turn falls back."""
 
     def test_the_context_has_authorities_loaded(self):
         self.assertTrue(_ssl_context().get_ca_certs())
@@ -235,36 +209,70 @@ class TestNoReplyMark(unittest.TestCase):
         self.assertEqual(clean_reply(text, max_chars=100), text)
 
 
-class TestDebatePrompt(unittest.TestCase):
+class TestSystemPrompt(unittest.TestCase):
 
-    def test_contains_name_question_and_role(self):
-        system = llm_agent.build_system_prompt(
-            "rejection", name="Nova",
-            question="¿Messi es el mejor de la historia?")
-        self.assertIn("Nova", system)
-        self.assertIn("¿Messi es el mejor de la historia?", system)
-        self.assertIn("RECHAZO", system)
-        self.assertNotIn("{", system)
-
-    def test_without_question_uses_the_situation_prompt(self):
+    def test_is_the_annex_prompt(self):
         system = llm_agent.build_system_prompt("validation")
+        self.assertIn("Sos Alex", system)
         self.assertIn("situación personal", system)
+        self.assertIn("350 caracteres", system)
         self.assertNotIn("{", system)
 
-    def test_agent_uses_debate_prompt_when_given_a_question(self):
-        seen = {}
+    def test_each_feedback_gets_its_task_paragraph(self):
+        self.assertIn("VALIDAR emocionalmente",
+                      llm_agent.build_system_prompt("validation"))
+        self.assertIn("invalidar emocionalmente",
+                      llm_agent.build_system_prompt("rejection"))
 
-        def transport(payload):
-            seen["system"] = payload["messages"][0]["content"]
-            return "ok"
+    def test_includes_the_three_style_examples_of_the_feedback_type(self):
+        for feedback in llm_agent.FEEDBACK_TYPES:
+            system = llm_agent.build_system_prompt(feedback)
+            for line in protocol.fallback_lines()[feedback].values():
+                self.assertIn(line, system)
 
-        agent = LLMAgent("validation", transport=transport,
-                         name="Julián", question="¿La religión hace bien?")
-        agent.hear("Yo creo que sí.")
-        agent.reply("fallback")
-        self.assertIn("¿La religión hace bien?", seen["system"])
-        self.assertIn("Julián", seen["system"])
-        self.assertIn("VALIDAR", seen["system"])
+    def test_the_rest_of_the_prompt_is_the_same_for_both_feedback_types(self):
+        cfg = protocol.prompts()
+        for feedback, other in (("validation", "rejection"),
+                                ("rejection", "validation")):
+            self.assertNotIn(cfg["role"][other],
+                             llm_agent.build_system_prompt(feedback))
+        shared = cfg["rules"].split("{role}")[0]
+        self.assertTrue(
+            llm_agent.build_system_prompt("validation").startswith(shared))
+        self.assertTrue(
+            llm_agent.build_system_prompt("rejection").startswith(shared))
+
+    def test_never_mentions_how_the_agent_is_presented(self):
+        """Critical point of the spec: if the model received the label it
+        could adjust its style, and the content would stop being identical
+        across agent conditions."""
+        for feedback in llm_agent.FEEDBACK_TYPES:
+            system = llm_agent.build_system_prompt(feedback).lower()
+            for word in ("inteligencia artificial", "otro participante",
+                         "otra persona participando", "asistente", "humano"):
+                self.assertNotIn(word, system)
+
+
+class TestDeadline(unittest.TestCase):
+
+    def test_a_slow_transport_falls_back_at_the_deadline(self):
+        """urllib's timeout is per socket operation, so a reply that keeps
+        trickling in would otherwise run past the limit."""
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def slow_transport(payload):
+            release.wait(timeout=5)
+            return "too late"
+
+        agent = LLMAgent("rejection", transport=slow_transport, timeout=0.05)
+        agent.hear("hola")
+        start = time.time()
+        text, origin, reason = agent.reply(fallback_line="respaldo")
+
+        self.assertLess(time.time() - start, 2)
+        self.assertEqual((text, origin), ("respaldo", "fallback"))
+        self.assertIn("TimeoutError", reason)
 
 
 class TestProbe(unittest.TestCase):

@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Tests of the shared CSV writer:
+Tests of the CSV writer:
     python3 -m unittest common.test_output -v
 
-They pin the output FORMAT, which is what has to be identical between the
-desktop and the web demo: if a column changes, any existing analysis script
+They pin the output FORMAT: if a column changes, any existing analysis script
 breaks silently.
 """
 
@@ -60,16 +59,27 @@ class TestWriteChat(unittest.TestCase):
                 rows = list(csv.reader(f))
         self.assertEqual(rows[0], output.CHAT_FIELDS)
 
-    def test_chat_fields_carry_the_episode_context_and_the_reason(self):
+    def test_chat_fields_carry_what_the_spec_asks_per_message(self):
         self.assertEqual(output.CHAT_FIELDS, [
-            "episode", "condition", "interlocutor", "topic", "author",
-            "text", "origin", "fallback_reason", "t_experiment_s",
-            "latency_s"])
+            "participant_id", "episode", "condition", "agent_type", "feedback",
+            "domain", "round", "turn", "author", "text", "chars", "origin",
+            "fallback_reason", "t_experiment_s", "t_unix", "shown_latency_s",
+            "response_latency_s"])
+
+    def test_the_text_is_not_truncated(self):
+        long_text = "palabra " * 500
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "ch.csv")
+            output.write_chat(path, [{"author": "participant",
+                                      "text": long_text}])
+            with open(path, encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+        self.assertEqual(rows[0]["text"], long_text)
 
 
 class TestWriteEvents(unittest.TestCase):
 
-    def test_same_header_as_the_desktop_log(self):
+    def test_event_header(self):
         self.assertEqual(
             output.EVENT_FIELDS,
             ["t_experiment_s", "t_unix", "code", "label", "detail"])
@@ -99,20 +109,11 @@ class TestWriteAll(unittest.TestCase):
             for p in paths:
                 self.assertTrue(os.path.exists(p))
 
-    def test_without_events_writes_three(self):
-        """The desktop streams _events.csv while running, so it does not pass it."""
-        with tempfile.TemporaryDirectory() as folder:
-            paths = output.write_all(
-                folder, "S1_x_ai_today",
-                responses={"a": 1}, behavioral=[{"episode": 1}],
-                chat=[{"author": "agent", "text": "hola"}])
-        self.assertEqual(len(paths), 3)
-
     def test_creates_the_folder_if_missing(self):
         with tempfile.TemporaryDirectory() as folder:
             target = os.path.join(folder, "data", "new")
             output.write_all(target, "S1_x_ai_today", responses={"a": 1},
-                             behavioral=[{"episode": 1}], chat=[])
+                             behavioral=[{"episode": 1}], chat=[], events=[])
             self.assertTrue(os.path.isdir(target))
 
 

@@ -16,7 +16,7 @@ import unittest
 import urllib.error
 import urllib.request
 
-from common import protocol
+from common import output, protocol
 from web.server import app
 
 
@@ -54,6 +54,10 @@ class ServerBase(unittest.TestCase):
         self._previous_code = app.ACCESS_CODE
         self._previous_transport = app.TRANSPORT
         self._previous_probe = app.PROBE_TRANSPORT
+        self._previous_demo = app.DEMO_MODE
+        self._previous_cap = app.MAX_TURNS_PER_DAY
+        app.DEMO_MODE = False
+        app.reset_turn_budget()
 
     def tearDown(self):
         self.server.shutdown()
@@ -62,6 +66,9 @@ class ServerBase(unittest.TestCase):
         app.ACCESS_CODE = self._previous_code
         app.TRANSPORT = self._previous_transport
         app.PROBE_TRANSPORT = self._previous_probe
+        app.DEMO_MODE = self._previous_demo
+        app.MAX_TURNS_PER_DAY = self._previous_cap
+        app.reset_turn_budget()
 
 
 class TestHealth(ServerBase):
@@ -104,25 +111,28 @@ class TestHealth(ServerBase):
 
 class TestReads(ServerBase):
 
-    def test_protocol_carries_the_eleven_sections(self):
+    def test_protocol_carries_every_section_and_the_mode(self):
         status, body = request(self.port, "/api/protocol")
         self.assertEqual(status, 200)
         self.assertEqual(
             set(body),
-            {"texts", "scales", "markers", "prompts", "parameters",
-             "scripts", "fallback", "panas", "sequences", "interlocutors",
-             "topics"})
+            {"texts", "scales", "markers", "prompts", "parameters", "panas",
+             "sequences", "domain_sequences", "domains", "instruments",
+             "fallback", "demo_mode"})
 
-    def test_script_turns_arrive_with_string_keys(self):
+    def test_protocol_reports_the_demo_mode(self):
+        app.DEMO_MODE = True
+        _, body = request(self.port, "/api/protocol")
+        self.assertIs(body["demo_mode"], True)
+        app.DEMO_MODE = False
+        _, body = request(self.port, "/api/protocol")
+        self.assertIs(body["demo_mode"], False)
+
+    def test_fallback_turns_arrive_with_string_keys(self):
         """After JSON the integer keys become strings: the browser side has
         to read them that way."""
         _, body = request(self.port, "/api/protocol")
-        self.assertIn("1", body["scripts"]["validation"])
-
-    def test_desktop_debriefing_comes_with_both_versions(self):
-        _, body = request(self.port, "/api/protocol")
-        self.assertEqual(set(body["texts"]["desktop_debriefing"]["body"]),
-                         {"scripted", "llm"})
+        self.assertIn("1", body["fallback"]["validation"])
 
     def test_missing_path_is_404(self):
         status, _ = request(self.port, "/does-not-exist.js")
@@ -143,28 +153,48 @@ class TestTurn(ServerBase):
 
     def test_returns_the_text_with_origin_llm_and_no_reason(self):
         status, body = request(self.port, "/api/turn", {
-            "feedback": "validation", "name": "Nova",
-            "question": "¿Messi es el mejor?",
-            "history": [{"role": "user", "content": "Sí, obvio."}],
+            "feedback": "validation",
+            "history": [{"role": "user", "content": "Perdí el trabajo."}],
             "fallback_line": "fallback"})
         self.assertEqual(status, 200)
         self.assertEqual(body, {"text": "model reply", "origin": "llm",
                                 "fallback_reason": None})
 
-    def test_the_question_and_name_reach_the_system_prompt(self):
-        seen = {}
+    def test_nothing_the_client_sends_can_change_the_prompt(self):
+        """The model must not receive the label shown to the participant."""
+        seen = []
 
         def transport(payload):
-            seen["system"] = payload["messages"][0]["content"]
+            seen.append(payload["messages"][0]["content"])
             return "ok"
 
         app.TRANSPORT = transport
-        request(self.port, "/api/turn", {
-            "feedback": "rejection", "name": "Kai",
-            "question": "¿El arte es cualquier cosa?", "history": [],
+        for extra in ({"agent_type": "human", "label": "otra persona",
+                       "name": "Kai", "question": "¿Quién?"},
+                      {"agent_type": "ai", "label": "una IA"}):
+            request(self.port, "/api/turn", dict(
+                extra, feedback="rejection", history=[], fallback_line="x"))
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(seen[0], seen[1])
+        self.assertNotIn("Kai", seen[0])
+
+    def test_a_history_longer_than_an_episode_is_400(self):
+        """Opening plus three rounds is at most six messages: a longer history
+        is someone using the proxy as a free chat."""
+        rounds = protocol.parameters("demo")["rounds"]
+        history = [{"role": "user", "content": "x"}] * (2 * rounds + 1)
+        status, _ = request(self.port, "/api/turn", {
+            "feedback": "validation", "history": history,
             "fallback_line": "x"})
-        self.assertIn("¿El arte es cualquier cosa?", seen["system"])
-        self.assertIn("Kai", seen["system"])
+        self.assertEqual(status, 400)
+
+    def test_a_full_episode_history_is_accepted(self):
+        rounds = protocol.parameters("demo")["rounds"]
+        history = [{"role": "user", "content": "x"}] * (2 * rounds)
+        status, _ = request(self.port, "/api/turn", {
+            "feedback": "validation", "history": history,
+            "fallback_line": "x"})
+        self.assertEqual(status, 200)
 
     def test_replays_the_history_into_the_payload(self):
         seen = {}
@@ -188,8 +218,7 @@ class TestTurn(ServerBase):
         self.assertEqual(status, 400)
 
     def test_if_the_transport_fails_returns_the_line_with_200(self):
-        """The demo does not go down because of one turn: it falls back,
-        like the desktop."""
+        """The demo does not go down because of one turn: it falls back."""
         def transport(payload):
             raise IOError("no network")
 
@@ -200,6 +229,51 @@ class TestTurn(ServerBase):
         self.assertEqual(status, 200)
         self.assertEqual(body, {"text": "Mmm, no sé.", "origin": "fallback",
                                 "fallback_reason": "OSError: no network"})
+
+
+class TestDemoMode(ServerBase):
+
+    def setUp(self):
+        super().setUp()
+        app.ACCESS_CODE = ""
+        app.DEMO_MODE = True
+
+    def test_storing_a_session_is_refused_and_writes_nothing(self):
+        """The screen promises that nothing is recorded."""
+        status, _ = request(self.port, "/api/data", {
+            "info": {"participant_id": "07", "sequence": 3},
+            "responses": {}, "behavioral": [], "chat": [], "events": []})
+        self.assertEqual(status, 403)
+        self.assertEqual(os.listdir(self.folder), [])
+
+    def test_past_the_daily_cap_turns_come_from_the_fallback_line(self):
+        calls = []
+
+        def transport(payload):
+            calls.append(1)
+            return "model reply"
+
+        app.TRANSPORT = transport
+        app.MAX_TURNS_PER_DAY = 1
+        turn = {"feedback": "validation", "history": [],
+                "fallback_line": "respaldo"}
+        _, first = request(self.port, "/api/turn", turn)
+        status, second = request(self.port, "/api/turn", turn)
+        self.assertEqual(first["origin"], "llm")
+        self.assertEqual(status, 200)
+        self.assertEqual(second["text"], "respaldo")
+        self.assertEqual(second["origin"], "fallback")
+        self.assertIn("cap", second["fallback_reason"])
+        self.assertEqual(len(calls), 1)
+
+    def test_the_cap_only_applies_to_the_demo(self):
+        app.DEMO_MODE = False
+        app.TRANSPORT = lambda payload: "model reply"
+        app.MAX_TURNS_PER_DAY = 1
+        turn = {"feedback": "validation", "history": [], "fallback_line": "x"}
+        request(self.port, "/api/turn", turn)
+        _, second = request(self.port, "/api/turn", turn)
+        self.assertEqual(second["origin"], "llm")
 
 
 class TestAccessCode(ServerBase):
@@ -235,11 +309,12 @@ class TestData(ServerBase):
     def _send(self):
         return request(self.port, "/api/data", {
             "info": {"participant_id": "07", "sequence": 3},
-            "responses": {"ep1_suds": 40},
+            "responses": {"ep1_suds": 4},
             "behavioral": [{"episode": 1, "condition": "ai_rejection"}],
             "chat": [{"episode": 1, "condition": "ai_rejection",
-                      "interlocutor": "Nova", "topic": "art",
-                      "author": "agent", "text": "hola", "origin": "fallback",
+                      "domain": "friendship", "round": 1, "turn": 2,
+                      "author": "agent", "text": "hola", "chars": 4,
+                      "origin": "fallback",
                       "fallback_reason": "OSError: no network"}],
             "events": [{"t_experiment_s": 0, "t_unix": 0, "code": 1,
                         "label": "experiment_start", "detail": "3"}]})
@@ -261,11 +336,9 @@ class TestData(ServerBase):
         chat = [n for n in body["files"] if "_chat" in n][0]
         with open(os.path.join(self.folder, chat), encoding="utf-8") as f:
             header, row = f.read().splitlines()[:2]
-        self.assertEqual(header.split(","), [
-            "episode", "condition", "interlocutor", "topic", "author",
-            "text", "origin", "fallback_reason", "t_experiment_s",
-            "latency_s"])
+        self.assertEqual(header.split(","), output.CHAT_FIELDS)
         self.assertIn("OSError: no network", row)
+        self.assertIn("friendship", row)
 
     def test_marks_the_platform_as_web(self):
         _, body = self._send()
