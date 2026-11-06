@@ -42,12 +42,6 @@ def scales():
     return _read_json("scales")
 
 
-def instruments():
-    """UCLA-3 and ECR: their items, or an empty list while the wording of the
-    validated Spanish versions is pending."""
-    return _read_json("instruments")
-
-
 def markers():
     """{label: code} for the event log."""
     return _read_json("markers")
@@ -108,12 +102,6 @@ def fallback_lines():
     return out
 
 
-def panas():
-    """The 20 PANAS items, in order, from protocol/panas.csv."""
-    with open(os.path.join(PROTOCOL_DIR, "panas.csv"), encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
 def everything():
     """The whole protocol in one dict, to serve it over HTTP to the browser.
 
@@ -123,12 +111,10 @@ def everything():
     return {
         "texts": texts(),
         "scales": scales(),
-        "instruments": instruments(),
         "markers": markers(),
         "prompts": prompts(),
         "parameters": {mode: parameters(mode) for mode in MODES},
         "fallback": fallback_lines(),
-        "panas": panas(),
         "sequences": sequences(),
         "domains": domains(),
         "domain_sequences": domain_sequences(),

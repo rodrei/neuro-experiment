@@ -160,7 +160,7 @@ body.demo #start .research-only { display: none; }
 /* Every screen is centred in the viewport. jsPsych's own content wrapper
    centres with `margin: auto`, which only works when the display element
    has a height: here it gets the whole viewport. Screens taller than the
-   viewport (the PANAS pages) start at the top and scroll. */
+   viewport start at the top and scroll. */
 #jspsych-target { display: none; }
 #jspsych-target.active {
   display: flex;
@@ -222,36 +222,6 @@ body.demo #start .research-only { display: none; }
 
 .fixation-cross { font-size: 4rem; }
 .rest-caption { color: var(--muted); margin-top: 3rem; }
-
-/* PANAS as a grid: 10 items per page, statement on the left, scale on the
-   right. The plugin injects its own <style> with 40px/35px paddings; the ids
-   give these rules precedence. */
-#jspsych-survey-likert-form {
-  display: grid;
-  grid-template-columns: 11rem minmax(24rem, 30rem);
-  align-items: center;
-  column-gap: 1.2rem;
-  row-gap: .15rem;
-  justify-content: center;
-}
-#jspsych-survey-likert-form .jspsych-survey-likert-statement {
-  text-align: right;
-  font-size: .95rem;
-  padding-top: 0;
-  margin: 0;
-}
-#jspsych-survey-likert-form .jspsych-survey-likert-opts {
-  font-size: .72rem;
-  padding: 0 0 .9rem;
-  margin: 0;
-}
-#jspsych-survey-likert-form .jspsych-survey-likert-opts:before { top: 10px; }
-#jspsych-survey-likert-form #jspsych-survey-likert-next {
-  grid-column: 1 / -1;
-  justify-self: center;
-  margin-top: .8rem;
-}
-.jspsych-survey-likert-preamble .prompt { margin-bottom: 1rem; }
 
 /* ------------------------------------------------------------------ */
 /* Chat                                                                */

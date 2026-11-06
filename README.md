@@ -16,11 +16,11 @@ the study as designed in both modes, so **`DEMO_MODE=0` must not be used with re
 participants until that chat exists**: it would tell them a person answered when
 the model did.
 
-The specification is Elena's document, in the group's Drive folder
-`entrega final`: «Rodrigo modificas al experimento», together with the paper's
-Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». The
-real person in the human condition is a later group decision and overrides what
-those documents say about a single LLM.
+The specification is in the group's Drive folder `entrega final`: the paper's
+Method and Annexes A1 and A2, «Decisiones de diseño y su fundamento» and
+«Pendientes». «Rodrigo modificas al experimento» and the handoff predate the person
+in the human condition and the reduced set of scales, so where they disagree the
+other three win.
 
 Code, comments, JSON keys, CSV headers and developer docs are in English.
 Everything a participant reads is Argentine Spanish (voseo) and lives in
@@ -91,8 +91,8 @@ Three layers; the dependency always points the same way
 
 1. Start form; LLM pre-flight outside the demo.
 2. Consent, with the stated purpose of the study.
-3. Resting baseline (fixation cross), then UCLA-3, ECR, the AI companion use
-   items and PANAS.
+3. Resting baseline (fixation cross), then the AI companion use items. The
+   loneliness and attachment scales are not part of the session.
 4. **The four situations**, one per domain, all before any feedback, each with
    a 0–10 distress rating. A rating of 9 or 10 shows an alert so the
    experimenter can offer to replace the situation; both versions are kept.
@@ -106,7 +106,7 @@ Three layers; the dependency always points the same way
       writing and the agent answering. The first message box starts with the
       situation written in step 4, which the participant can edit and has to
       send. The last message stays up for a fixed hold before Continuar.
-   5. PANAS → SAM → SUDS → authenticity → four manipulation checks → naturalness.
+   5. SAM → SUDS → authenticity → six manipulation checks → naturalness.
    6. Pause (except after the fourth).
 6. **Final block**: for each episode, identified by its domain, a 0–100 scale
    of who the participant believes they talked to; then the open suspicion
@@ -155,10 +155,10 @@ writes nothing. The team reads and downloads them at `/admin` (see `web/README.m
 | `_events.csv` | `t_experiment_s`, `t_unix`, `code`, `label`, `detail`: baseline, situations, each episode, each round, each agent message, each scale block, final block, debriefing. **The one to align with the physiological recording.** |
 | `_chat.csv` | Every message: `participant_id`, `episode`, `condition`, `agent_type`, `feedback`, `domain`, `round` (0 is the opening), `turn`, `author`, `text`, `chars`, `origin` (`opening`, `llm`, `fallback`, `experimenter`, `participant`), `fallback_reason`, `t_experiment_s`, `t_unix`, `shown_latency_s`, `response_latency_s` |
 | `_behavioral.csv` | One row per episode: `participant_id`, `episode`, `condition`, `agent_type`, `feedback`, `domain`, `pre_rating`, `rounds_completed`, `agent_turns`, `agent_chars_total`, `agent_chars_mean`, `total_shown_latency_s`, `participant_messages`, `replies_timed_out`, `fallback_turns`, `experimenter_turns`, `experimenter_intervention` |
-| `_responses.csv` | key,value rows: session info, `baseline_*`, `situation_<domain>` with `_pre_rating`, `_alerted`, `_discarded`, `suspicion`, and per episode `epN_condition`, `epN_agent_type`, `epN_feedback`, `epN_domain`, `epN_pre_rating`, `epN_pre_suds`, `epN_suds`, `epN_sam_*`, `epN_auth_1..3`, `epN_auth_mean`, `epN_mc_*`, `epN_naturalness`, `epN_credibility`, `epN_stood_out`, `epN_pa_*`/`epN_na_*`, `epN_PA_total`, `epN_NA_total` |
+| `_responses.csv` | key,value rows: session info, `baseline_*`, `situation_<domain>` with `_pre_rating`, `_alerted`, `_discarded`, `suspicion`, and per episode `epN_condition`, `epN_agent_type`, `epN_feedback`, `epN_domain`, `epN_pre_rating`, `epN_pre_suds`, `epN_suds`, `epN_sam_*`, `epN_auth_1..3`, `epN_auth_mean`, `epN_mc_*`, `epN_naturalness`, `epN_credibility`, `epN_stood_out` |
 
-A skipped screen leaves its value empty; an incomplete PANAS subscale has no
-total; `test_mode` is recorded in `_responses.csv`. The session is held in the
+A skipped screen leaves its value empty; `test_mode` is recorded in
+`_responses.csv`. The session is held in the
 browser and sent once at the end, so closing the tab mid-session loses it.
 
 ---
@@ -176,15 +176,30 @@ browser and sent once at the end, so closing the tab mid-session loses it.
 
 ---
 
+## The paper
+
+The app differs from what the paper's Drive document says in these places, which
+the group has to carry over by hand:
+
+- **Annex A2, validation:** if the person has not named a feeling, the model does
+  not attribute one; it validates first and may close with one question about what
+  was told, which counts within the three sentences, and none in its third message.
+- **Annex A2, rejection:** it adds that the model never asks questions, not even
+  rhetorical ones.
+- **Sections 2.5 and 3:** six manipulation items, not four. The two new ones are the
+  wording «Pendientes» proposes, still to be validated by Valentina.
+- **Section 2.4:** the first message box of each episode starts with the situation
+  written earlier.
+
+---
+
 ## Still pending
 
 - [ ] The live chat for the person in the human condition. Until it exists,
       `DEMO_MODE=0` must not be used with real participants.
-- [ ] The wording of the validated Spanish UCLA-3 and ECR. Until
-      `protocol/instruments.json` has their items, each shows a screen naming
-      the instrument.
 - [ ] Group review of everything drafted here that is not in the paper: the
-      three style examples / fallback lines, the AI companion use items, and the
-      consent and debriefing wording.
-- [ ] Check the 20 PANAS items against Moriondo et al. (2012).
+      three style examples / fallback lines, the AI companion use items, the
+      two attribution items, and the consent and debriefing wording.
+- [ ] The paper's Annex A2 and sections 2.5 and 3 need to catch up with the app:
+      see "The paper" below.
 - [ ] Rotate the fly.io access code after each demo.

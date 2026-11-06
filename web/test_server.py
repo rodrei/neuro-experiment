@@ -120,9 +120,8 @@ class TestReads(ServerBase):
         self.assertEqual(status, 200)
         self.assertEqual(
             set(body),
-            {"texts", "scales", "markers", "prompts", "parameters", "panas",
-             "sequences", "domain_sequences", "domains", "instruments",
-             "fallback", "demo_mode"})
+            {"texts", "scales", "markers", "prompts", "parameters",
+             "sequences", "domain_sequences", "domains", "fallback", "demo_mode"})
 
     def test_protocol_reports_the_demo_mode(self):
         app.DEMO_MODE = True

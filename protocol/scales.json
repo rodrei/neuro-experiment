@@ -27,6 +27,8 @@
     "items": [
       {"key": "mc_understood", "component": "invalidation", "prompt": "Sentí que mi interlocutor entendió lo que me pasaba."},
       {"key": "mc_made_sense", "component": "invalidation", "prompt": "Sentí que mi interlocutor consideró que mi reacción tenía sentido."},
+      {"key": "mc_problem_was_me", "component": "attribution", "prompt": "Sentí que mi interlocutor pensó que el problema era yo."},
+      {"key": "mc_blamed_me", "component": "attribution", "prompt": "Sentí que mi interlocutor me atribuyó la culpa de lo que pasó."},
       {"key": "mc_interested", "component": "withdrawal", "prompt": "Sentí que mi interlocutor tenía interés en seguir la conversación."},
       {"key": "mc_wanted_to_end", "component": "withdrawal", "prompt": "Sentí que mi interlocutor quería terminar la conversación."}
     ],
@@ -69,11 +71,5 @@
         "labels": ["1\nnada", "", "", "", "", "", "7\nmuchísimo"]
       }
     ]
-  },
-  "panas": {
-    "instruction": "Indicá en qué medida te sentís así EN ESTE MOMENTO.",
-    "ticks": [1, 2, 3, 4, 5],
-    "anchors": ["muy poco\no nada", "un poco", "moderada-\nmente", "bastante", "extremada-\nmente"],
-    "items_per_page": 10
   }
 }

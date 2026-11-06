@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Implementation of Study 1 of a neuroscience diploma experiment: "Validation and rejection: AI vs. human agent" (Group 3, AI companions). Design: **2×2 fully within-subject** — agent type (person vs. AI) × feedback (validation vs. rejection) — four episodes of three rounds each, about personal situations from four domains. In the study's human condition a person from the research team writes every turn, following the protocol, presented as another participant; in the AI condition an LLM does. **The chat for that person is not built yet, so the LLM answers all four episodes in both modes**, and the demo says so. A debriefing reveals the setup as designed. The assignment is delivered as if the study had run: there are no real participants, and the results come from simulated data.
 
-The specification lives in the group's Drive folder `entrega final`: «Rodrigo modificas al experimento», the paper's Method and Annexes A1 and A2, and «Decisiones de diseño y su fundamento». Follow those documents on design questions rather than proposing alternatives, except that the real person in the human condition is a later group decision and overrides what they say about a single LLM.
+The specification lives in the group's Drive folder `entrega final`: the paper's Method and Annexes A1 and A2, «Decisiones de diseño y su fundamento» and «Pendientes». Follow those documents on design questions rather than proposing alternatives. «Rodrigo modificas al experimento» and the handoff predate the person in the human condition and the reduced set of scales, so where they disagree the other three win. The Drive documents are read, never edited from here.
 
 It runs in a browser: `web/` (jsPsych + stdlib `http.server`, deployed on fly.io in demo mode).
 
-**Language rule:** code, comments, docstrings, JSON keys, CSV headers, developer docs and commit messages are in **English**. Everything a participant reads (values in `protocol/*.json`, `fallback.csv`, `panas.csv`, and the UI strings in `web/index.html` / the JS) is **Argentine Spanish (voseo)**. The design doc and `docs/superpowers/*` from before the rename stay Spanish.
+**Language rule:** code, comments, docstrings, JSON keys, CSV headers, developer docs and commit messages are in **English**. Everything a participant reads (values in `protocol/*.json`, `fallback.csv`, and the UI strings in `web/index.html` / the JS) is **Argentine Spanish (voseo)**. The design doc and `docs/superpowers/*` from before the rename stay Spanish.
 
 ## How to run
 
@@ -24,7 +24,7 @@ It runs in a browser: `web/` (jsPsych + stdlib `http.server`, deployed on fly.io
 
 Dependency direction: `web/` → `common/` → `protocol/`, never back.
 
-**`protocol/`** — content as data: `texts.json` (screens), `scales.json`, `instruments.json` (UCLA-3, ECR), `parameters.json`, `markers.json`, `prompts.json` (Annex A2), `domains.json`, `sequences.json` (Williams Latin square), `domain_sequences.json` (independent Latin square), `fallback.csv` (fallback lines, also the prompt's style examples), `panas.csv`. **Edit content here, never in code.** Run the common tests afterwards.
+**`protocol/`** — content as data: `texts.json` (screens), `scales.json`, `parameters.json`, `markers.json`, `prompts.json` (Annex A2), `domains.json`, `sequences.json` (Williams Latin square), `domain_sequences.json` (independent Latin square), `fallback.csv` (fallback lines, also the prompt's style examples). **Edit content here, never in code.** Run the common tests afterwards.
 
 **`common/`** — stdlib Python: `protocol.py` (only reader of `protocol/`), `llm_agent.py` (`build_system_prompt`, `LLMAgent.reply()` → `(text, origin, reason)`, `probe()`; transport injected, hence testable without network), `output.py` (CSV writer; `CHAT_FIELDS`, `EVENT_FIELDS`). No new dependencies.
 
@@ -40,7 +40,7 @@ Output: four CSVs per session in `DATA_DIR` (`_events`, `_responses`, `_behavior
 2. **The model never receives the label.** `/api/turn` takes only the feedback type and the conversation.
 3. Agent latency is deterministic: `latency_base + latency_per_char × chars`, capped — applied after generation.
 4. Nothing asks about the interlocutor's identity before the final block; the per-episode naturalness item does not mention it. In the final block, credibility comes before the open questions.
-5. Post-episode order: PANAS → SAM → SUDS → authenticity → manipulation checks → naturalness. The baseline has no interlocutor items.
+5. Post-episode order: SAM → SUDS → authenticity → six manipulation checks → naturalness. The baseline has no interlocutor items.
 6. Every message is stored verbatim with origin, shown latency, length and turn number.
 7. Agent messages are stamped when they reach the screen, not when requested or when the typing indicator starts. Every relevant event leaves a marker (`markers.json`).
 8. The demo says the session is saved and who sees it, and withdrawing at the end leaves nothing on the server. `/admin` shows what people wrote: it keeps its own password, separate from the evaluators' code, and everything from a session is escaped before it reaches the page.
@@ -48,4 +48,4 @@ Output: four CSVs per session in `DATA_DIR` (`_events`, `_responses`, `_behavior
 
 ## Known pending items
 
-See README "Still pending": the live chat for the person in the human condition, UCLA-3 and ECR wording, group review of the drafted Spanish, PANAS translation check, access-code rotation after demos.
+See README "Still pending": the live chat for the person in the human condition, group review of the drafted Spanish, access-code rotation after demos.

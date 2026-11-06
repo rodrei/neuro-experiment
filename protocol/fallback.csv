@@ -1,7 +1,7 @@
 feedback,turn,text
-validation,1,"Tiene mucho sentido que te hayas sentido así con lo que pasó. Se nota que todavía te pesa, y es entendible."
-validation,2,"Cualquiera en tu lugar se habría sentido parecido. Dado lo que me contás, tu reacción tiene toda la lógica."
+validation,1,"Tiene mucho sentido que te haya afectado lo que pasó. Se nota que todavía te pesa, y es entendible."
+validation,2,"Cualquiera en tu lugar se habría sentido parecido. Dado lo que me contás, tiene toda la lógica. ¿Qué es lo que más te quedó dando vueltas?"
 validation,3,"Entiendo que te siga afectando cuando lo pensás. Con lo que pasó, lo que sentís tiene mucho sentido."
 rejection,1,"Mmm. La verdad es que no me parece tan grave lo que contás. Me cuesta ver por qué te afectó tanto."
-rejection,2,"No sé, mucha gente ni se haría problema por algo así. No le encuentro mucho sentido a seguir con esto."
+rejection,2,"No sé, mucha gente ni se haría problema por algo así. Me parece que vos te tomás todo muy a pecho."
 rejection,3,"Bueno, no creo que haya mucho más para decir sobre esto. Mejor lo dejamos acá y terminamos."

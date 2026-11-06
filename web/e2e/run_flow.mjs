@@ -63,14 +63,12 @@ async function classify(page) {
     const text = el.innerText || "";
     if (el.querySelector(".chat")) return "chat";
     if (el.querySelector(".fixation-cross")) return "rest";
-    if (el.querySelector(".jspsych-survey-likert-statement")) return "panas";
     if (el.querySelector("input[type=range]")) return "slider";
     if (el.querySelector("textarea")) return "text-question";
     if (text.startsWith("Conectando")) return "connecting";
     if (text.startsWith("Próxima conversación")) return "announcement";
     if (text.startsWith("Antes de empezar")) return "consent";
     if (text.startsWith("Registro en reposo")) return "rest-instructions";
-    if (text.startsWith("Acá va el cuestionario")) return "instrument";
     if (text.startsWith("Tus situaciones")) return "elicitation-intro";
     if (text.startsWith("Avisale al experimentador")) return "distress-alert";
     if (text.startsWith("Las conversaciones")) return "instructions";
@@ -124,15 +122,6 @@ async function answerScreen(page, kind) {
       el.dispatchEvent(new Event("change"));
     });
     await page.click("#jspsych-html-slider-response-next");
-    return true;
-  }
-  if (kind === "panas") {
-    await page.evaluate(() => {
-      document.querySelectorAll(".jspsych-survey-likert-opts").forEach((row) => {
-        row.querySelector("input[type=radio]").checked = true;
-      });
-    });
-    await page.click("#jspsych-survey-likert-next");
     return true;
   }
   if (kind === "text-question") {
@@ -389,7 +378,7 @@ async function skipChatFlow(browser) {
   check(await page.isVisible("#skip"), "Saltar shows inside the chat");
   await page.keyboard.press("F9");
   check(await left(), "F9 ends a conversation while the opening is on its way");
-  check(await classify(page) === "panas", "the measures follow a skipped conversation");
+  check(await classify(page) === "slider", "the measures follow a skipped conversation");
 
   check(await untilChat(), "reached the second chat");
   await inputOpen();
@@ -550,7 +539,7 @@ async function fullFlow(browser) {
 
   const kinds = screens.map((s) => s.kind).filter((k) => k !== "blank");
   const firstIndex = (k) => kinds.indexOf(k);
-  const inOrder = ["consent", "rest", "instrument", "elicitation-intro",
+  const inOrder = ["consent", "rest", "slider", "elicitation-intro",
                    "instructions", "announcement", "chat", "final-intro",
                    "debriefing", "data-use"]
     .map(firstIndex);
@@ -596,16 +585,15 @@ async function fullFlow(browser) {
   const block = after.slice(0, end).filter((s) => s.kind !== "blank");
   const sc = PROTOCOL.scales;
   const expected = [
-    ...Array(2).fill("panas"),
     sc.sam_valence.prompt, sc.sam_arousal.prompt, sc.suds.prompt,
     ...sc.authenticity.items.map((it) => it.prompt),
     ...sc.manipulation_check.items.map((it) => it.prompt),
     sc.naturalness.prompt,
   ];
-  const got = block.map((s) => (s.kind === "panas" ? "panas" : s.text));
+  const got = block.map((s) => s.text);
   const matches = expected.length === got.length
     && expected.every((e, i) => got[i].startsWith(e));
-  check(matches, "post-episode order: PANAS, SAM, SUDS, authenticity, checks, naturalness"
+  check(matches, "post-episode order: SAM, SUDS, authenticity, six checks, naturalness"
     + (matches ? "" : ` (got ${JSON.stringify(got.map((g) => g.slice(0, 30)))})`));
 
   // Final block: credibility per episode first, the open questions after.
@@ -622,7 +610,7 @@ async function fullFlow(browser) {
 
   const identity = /(persona|inteligencia artificial|con quién)/i;
   const beforeFinal = screens.slice(0, finalIntro)
-    .filter((s) => s.kind === "slider" || s.kind === "panas");
+    .filter((s) => s.kind === "slider");
   check(!beforeFinal.some((s) => identity.test(s.text)
                                  && !s.text.includes("compañeros de inteligencia artificial")
                                  && !s.text.includes("Alex")),

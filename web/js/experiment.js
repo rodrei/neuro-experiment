@@ -267,7 +267,7 @@ function runExperiment() {
   timeline.push(mark("baseline_end"));
 
   timeline.push(mark("measures_start", "baseline"));
-  timeline.push(...baselineMeasures(mark));
+  timeline.push(...baselineMeasures());
   timeline.push(mark("measures_end", "baseline"));
 
   // The four situations, all before any feedback.
@@ -323,7 +323,7 @@ function runExperiment() {
     });
 
     timeline.push(mark("measures_start", moment + "_" + condition));
-    timeline.push(...episodeMeasures(moment, mark));
+    timeline.push(...episodeMeasures(moment));
     timeline.push(mark("measures_end", moment + "_" + condition));
 
     if (i < sequence.length - 1) {
@@ -435,8 +435,7 @@ function openQuestionInto(prompt, situation) {
 /* The Saltar button and the F9 key. They pass any screen. Inside a chat, in the
  * demo they end the conversation; in test mode they cut the current wait.
  *
- * Whatever is skipped stays EMPTY in the CSVs (a skipped PANAS page leaves the
- * subscale without a total), and a test run is flagged with test_mode in
+ * Whatever is skipped stays EMPTY in the CSVs, and a test run is flagged with test_mode in
  * _responses.csv, so it is never confused with a real one. */
 function enableSkip(jsPsych) {
   const button = document.getElementById("skip");

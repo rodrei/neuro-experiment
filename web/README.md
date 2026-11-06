@@ -66,9 +66,8 @@ Tests: `python3 -m unittest discover -s web -t . -v`
 
 Outside the demo, the **Modo test** checkbox adds a **Saltar** button bottom
 right and the **F9** key (on a Mac usually with `fn`) on every screen, plus the
-fallback banner. Whatever is skipped stays **empty** in the CSVs and a skipped
-PANAS page leaves the subscale without a total; `test_mode` is recorded in
-`_responses.csv`. Inside the chat the skip does not end the episode: it cuts the
+fallback banner. Whatever is skipped stays **empty** in the CSVs; `test_mode` is
+recorded in `_responses.csv`. Inside the chat the skip does not end the episode: it cuts the
 current wait or sends whatever is typed, filling an empty first message with
 `test_filler_text` from the protocol.
 
