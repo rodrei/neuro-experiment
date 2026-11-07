@@ -2,21 +2,24 @@
 01_simular.py — Genera los datos crudos simulados del estudio de AI companions.
 
 Los datos son SIMULADOS. Este script implementa la estructura de efectos descrita
-en el Anexo A5 del documento. Cada constante de PARAMS se corresponde con una fila
-de la tabla A5.5: si se cambia una, hay que cambiar la otra.
-
-Copia de trabajo del script de Elena, carpeta simulacion de Drive. Las diferencias
-con el original y su motivo estan en README.md.
+en el Anexo A3 del documento. Cada constante de esta seccion de parametros se
+corresponde con una fila de la tabla A3.5: si se cambia una, hay que cambiar la otra.
+Que hace y como, explicado para el equipo: LEEME.md.
 
 Produce datos deliberadamente "sucios" (artefactos, latidos ectopicos, faltantes,
-fallos de chequeo de etiqueta) para que 02_limpiar.py tenga sobre que operar y las
-exclusiones reportadas en la seccion 2.5 del paper tengan sustento.
+fallos de chequeo de etiqueta) para que la limpieza del notebook de analisis tenga
+sobre que operar y las exclusiones reportadas en la seccion 2.5 del paper tengan
+sustento.
 
 El autoinforme se mide por episodio (seccion 3 del paper): SUDS antes y despues,
 SAM al final. Dentro de un episodio se genera por ronda solo como estado subyacente,
 del que sale el valor final; la hoja de rondas no lo incluye porque nadie lo mide.
 
-Salida: datos/datos_crudos.xlsx  (hojas: participantes, episodios, rondas, parametros)
+El SCL se genera por epoca de 10 s (seccion 4 y Anexo A4): es lo que analiza H1b.
+El SCL de cada ronda es la media de las epocas de su tercio de la ventana.
+
+Salida: datos/datos_crudos.xlsx  (hojas: participantes, episodios, rondas, epocas,
+                                  parametros)
         datos/datos_crudos_*.csv
 
 Uso:  python3 01_simular.py
@@ -34,30 +37,30 @@ SALIDA = AQUI / "datos"
 SALIDA.mkdir(exist_ok=True)
 
 # ---------------------------------------------------------------- parametros
-# Cada entrada corresponde a una fila de la tabla A5.5 del Anexo.
+# Cada entrada corresponde a una fila de la tabla A3.5 del Anexo.
 
-N_PARTICIPANTES = 150   # determinado por simulacion de potencia, ver 00_potencia.py
-N_MUJERES = 81
+N_PARTICIPANTES = 200   # determinado por simulacion de potencia, ver 00_potencia.py y A4
+N_MUJERES = 108
 N_EPISODIOS = 4
 N_RONDAS = 3
 
-# Supuesto central (A5.2). Fracciones del delta de estres de laboratorio.
+# Supuesto central (A3.2). Fracciones del delta de estres de laboratorio.
 FRAC_RECHAZO = 0.60
 FRAC_VALIDACION = 0.25
 # Efecto de agente como fraccion del efecto de retroalimentacion. Asimetrico (H1d).
-AGENTE_EN_RECHAZO = 0.70      # calibrado: f realizado medio = 0.25 (ver A5.2)
+AGENTE_EN_RECHAZO = 0.70      # calibrado: f realizado medio = 0.25 (ver A3.2)
 AGENTE_EN_VALIDACION = 0.30   # mantiene la asimetria de H1d
 
-# Correlacion intra-sujeto entre medidas repetidas (A5.3); fija el reparto de
+# Correlacion intra-sujeto entre medidas repetidas (A3.3); fija el reparto de
 # varianza entre el intercepto del participante y el residuo.
 R_INTRA = 0.50
 
-# Desacople autorreporte-fisiologia (A5.3): correlacion entre los interceptos de
+# Desacople autorreporte-fisiologia (A3.3): correlacion entre los interceptos de
 # cada participante, con el signo de cada medida bajo estres.
 R_AUTOINFORME_FISIO = 0.15
 
 # Correlacion entre el pre-rating de la situacion y el autoinforme del episodio.
-# Es la covariable del plan de analisis (A6). Supuesto, sin fuente directa.
+# Es la covariable del plan de analisis (A4). Supuesto, sin fuente directa.
 R_PRE_AUTOINFORME = 0.30
 
 # Moderacion por genero en la respuesta electrodermica (Iffland et al., 2014).
@@ -73,7 +76,7 @@ DERIVA_SCL_POR_EPISODIO = 0.45     # microsiemens
 # son fracciones de este valor.
 VARIABLES = {
     # --- electrodermicas (Dawson, Schell y Filion, Tabla 7.1)
-    "scl_media":      dict(base=6.00, de=2.50, delta=0.00,  dist="lognormal"),
+    "scl_media":      dict(base=6.00, de=2.50, delta=0.00,  dist="lognormal"),   # en reposo; sale de las epocas
     "ns_scr_n":       dict(base=2.00, de=0.90, delta=0.60,  dist="poisson"),   # la varianza la fija lambda y R_INTRA
     "scr_amp_media":  dict(base=0.35, de=0.18, delta=0.15,  dist="lognormal"),
     # --- cardiacas (Castaldo et al., 2015, diferencias de medias agrupadas)
@@ -92,12 +95,24 @@ RANGO = dict(sam_valencia=(1, 9), suds=(0, 10))
 # La activacion del SAM se mide solo al final del episodio. Mismo ES; base y DE: supuesto.
 SAM_ACTIVACION = dict(base=4.00, de=1.60, delta=1.23)
 
-# El SCL no tiene efecto de nivel (Iffland) pero si de pendiente (Kelly):
-# habituacion por ronda, atenuada bajo rechazo, y mas con un agente humano (H1b).
-HABITUACION_SCL = -0.40            # microsiemens por ronda, condicion validacion
+# El SCL no tiene efecto de nivel (Iffland) pero si de pendiente (Kelly): habitua a
+# lo largo del episodio, menos bajo rechazo, y menos aun con un agente humano (H1b).
+# Se genera por epoca de 10 s dentro de una ventana fija, igual para los dos agentes,
+# contada desde el primer mensaje del agente. Kelly et al. (2012) usan 16 epocas.
+N_EPOCAS = 18                      # 3 minutos; 6 epocas por ronda
+RHO_EPOCA = 0.90                   # autocorrelacion del SCL tonico entre epocas seguidas. Supuesto
+ELEVACION_TAREA = 1.50             # uS sobre el reposo durante el episodio. Supuesto
 ATENUACION_RECHAZO = 0.55          # el rechazo habitua un 55% menos, en promedio de agentes
+# Kelly et al.: interaccion tiempo x condicion F(1,40) = 8,25 -> eta2p = .171 -> d_z = .449.
+# Es el efecto de RETROALIMENTACION sobre la pendiente (ostracismo contra inclusion).
+KELLY_DZ = 0.449
+# Pendiente en validacion, uS por epoca. No se elige: es la que reproduce KELLY_DZ
+# en el efecto de retroalimentacion, analizado como Kelly. La despeja
+# 00_calibrar_pendiente.py; si cambia RHO_EPOCA, el ruido o la ventana, hay que
+# volver a correrlo y copiar aca el valor.
+HABITUACION_SCL_EPOCA = -0.1449
 
-# Contaminacion deliberada (A5.1)
+# Contaminacion deliberada (A3.1)
 PROP_FALTANTES = 0.04
 PROP_ARTEFACTO_EDA = 0.05
 PROP_ECTOPICOS = 0.06              # umbral de latidos ectopicos y proporcion de rondas que lo superan
@@ -147,11 +162,18 @@ DOMINIOS = ["trabajo_estudio", "amistad", "familia_pareja", "uno_mismo"]
 CONDICIONES = [("humano", "validacion"), ("humano", "rechazo"),
                ("ia", "validacion"), ("ia", "rechazo")]
 
+# Los dos cuadrados de la web (protocol/sequences.json y domain_sequences.json); un
+# test verifica que coincidan. Indices sobre CONDICIONES y DOMINIOS.
+# Orden de las condiciones, una fila por secuencia: cuadrado de Williams. Cada
+# condicion aparece una vez en cada posicion y precede a cada otra una sola vez,
+# lo que equilibra el arrastre de un episodio al siguiente.
+CUADRADO_CONDICIONES = [[0, 1, 3, 2], [1, 2, 0, 3], [2, 3, 1, 0], [3, 0, 2, 1]]
+# Dominio de cada condicion, una fila por secuencia de dominios: cuadrado latino
+# ciclico, independiente del anterior.
+CUADRADO_DOMINIOS = [[(i + j) % 4 for j in range(4)] for i in range(4)]
+
 
 # ---------------------------------------------------------------- utilidades
-def cuadrado_latino(n=4):
-    """Cuadrado latino ciclico n x n: cada condicion una vez en cada posicion."""
-    return [[(i + j) % n for j in range(n)] for i in range(n)]
 
 
 def reparto_varianza(de_total, r=None):
@@ -164,7 +186,7 @@ def reparto_varianza(de_total, r=None):
 
 
 def efecto_condicion(delta, agente, feedback):
-    """Efecto de condicion en unidades de la variable, segun A5.2."""
+    """Efecto de condicion en unidades de la variable, segun A3.2."""
     frac = FRAC_RECHAZO if feedback == "rechazo" else FRAC_VALIDACION
     agente_frac = AGENTE_EN_RECHAZO if feedback == "rechazo" else AGENTE_EN_VALIDACION
     signo = +1 if agente == "humano" else -1
@@ -214,31 +236,29 @@ def muestrear(dist, media, de, size, rng):
 def generar_participantes(rng):
     gen = np.array(["mujer"] * N_MUJERES + ["varon"] * (N_PARTICIPANTES - N_MUJERES))
     rng.shuffle(gen)
-    ls = cuadrado_latino(4)
     filas = []
     for i in range(N_PARTICIPANTES):
         filas.append(dict(
             id=f"P{i+1:03d}",
             edad=int(round(np.clip(rng.normal(25, 4.5), 18, 40))),
             genero=gen[i],
-            secuencia=i % 4,                       # fila del cuadrado de condiciones
-            secuencia_dominios=(i // 4) % 4,       # fila del cuadrado de dominios
+            # filas de los dos cuadrados, como las sugiere la web a partir del numero
+            secuencia=i % 4,                       # fila de CUADRADO_CONDICIONES
+            secuencia_dominios=(i // 4) % 4,       # fila de CUADRADO_DOMINIOS
             sospecha=bool(rng.random() < PROP_SOSPECHA),
             ucla=float(np.clip(rng.normal(42, 9), 20, 80)),
             ecr_ansiedad=float(np.clip(rng.normal(3.4, 1.1), 1, 7)),
             ecr_evitacion=float(np.clip(rng.normal(3.1, 1.0), 1, 7)),
         ))
-    df = pd.DataFrame(filas)
-    df.attrs["latino"] = ls
-    return df, ls
+    return pd.DataFrame(filas)
 
 
 # ---------------------------------------------------------------- episodios
-def generar_episodios(participantes, ls, rng):
+def generar_episodios(participantes, rng):
     filas = []
     for _, p in participantes.iterrows():
-        orden_cond = ls[p.secuencia]
-        dominio_de = ls[p.secuencia_dominios]      # condicion -> dominio, cuadrado independiente
+        orden_cond = CUADRADO_CONDICIONES[p.secuencia]
+        dominio_de = CUADRADO_DOMINIOS[p.secuencia_dominios]   # condicion -> dominio
         for pos in range(N_EPISODIOS):
             condicion = orden_cond[pos]
             agente, feedback = CONDICIONES[condicion]
@@ -253,8 +273,99 @@ def generar_episodios(participantes, ls, rng):
     return pd.DataFrame(filas)
 
 
+# ---------------------------------------------------------------- epocas de SCL
+def generar_epocas(episodios, z_scl, rng, habituacion=None, rho=None):
+    """SCL tonico en uS por epoca de 10 s, dentro de la ventana fija de cada episodio.
+
+    Cada episodio tiene su nivel de reposo (el de la persona mas la deriva de Kelly
+    entre episodios), al que se suma la elevacion de la tarea y una pendiente de
+    habituacion. El residuo es AR(1) entre epocas, porque el SCL tonico cambia
+    despacio, y multiplicativo, como el resto de las medidas positivas: el SCL nunca
+    es negativo. Su desvio es el de una ronda, de modo que la correlacion
+    intra-sujeto del SCL sigue en R_INTRA. scl_basal es la linea base en reposo del
+    episodio. z_scl: puntaje de cada participante para el SCL, {id: z}.
+    """
+    habituacion = HABITUACION_SCL_EPOCA if habituacion is None else habituacion
+    rho = RHO_EPOCA if rho is None else rho
+    cfg = VARIABLES["scl_media"]
+    de_b, _ = reparto_varianza(cfg["de"])
+    s = np.sqrt(np.log1p(cv_residual(cfg["de"], cfg["base"]) ** 2))   # DE del log
+    n = len(episodios)
+
+    escala = np.array([factor_persona(z_scl[i], de_b / cfg["base"]) for i in episodios.id])
+    reposo = cfg["base"] * escala + DERIVA_SCL_POR_EPISODIO * (episodios.episodio.to_numpy() - 1)
+    atenuacion = np.array([atenuacion_habituacion(a, f)
+                           for a, f in zip(episodios.agente, episodios.feedback)])
+    t = np.arange(1, N_EPOCAS + 1) - (N_EPOCAS + 1) / 2     # centrada: sin efecto de nivel
+    tendencia = (reposo + ELEVACION_TAREA * escala)[:, None] \
+        + (habituacion * (1 - atenuacion))[:, None] * t
+
+    res = np.empty((n, N_EPOCAS))
+    res[:, 0] = rng.normal(0, s, n)
+    for k in range(1, N_EPOCAS):
+        res[:, k] = rho * res[:, k - 1] + rng.normal(0, s * np.sqrt(1 - rho ** 2), n)
+    scl = tendencia * np.exp(res - s ** 2 / 2)
+    basal = reposo * np.exp(rng.normal(0, s, n) - s ** 2 / 2)
+
+    epoca = np.tile(np.arange(1, N_EPOCAS + 1), n)
+    return pd.DataFrame(dict(
+        id=np.repeat(episodios.id.to_numpy(), N_EPOCAS),
+        episodio=np.repeat(episodios.episodio.to_numpy(), N_EPOCAS),
+        agente=np.repeat(episodios.agente.to_numpy(), N_EPOCAS),
+        feedback=np.repeat(episodios.feedback.to_numpy(), N_EPOCAS),
+        ronda=(epoca - 1) // (N_EPOCAS // N_RONDAS) + 1,
+        epoca=epoca,
+        scl=scl.ravel(),
+        scl_basal=np.repeat(basal, N_EPOCAS),
+    ))
+
+
+def pendiente_kelly(epocas):
+    """Pendiente de habituacion de cada episodio, como la estiman Kelly et al.:
+    minimos cuadrados de log(SCL + 1) - log(SCL_basal + 1) sobre las epocas, en
+    unidades de log por epoca. Restar la linea base cambia el nivel y no la
+    pendiente. Deja afuera las epocas con artefacto o faltantes, y da NaN si quedan
+    menos de dos de las tres rondas."""
+    e = epocas.sort_values(["id", "episodio", "epoca"])
+    if len(e) % N_EPOCAS:
+        raise ValueError("cada episodio tiene que tener sus N_EPOCAS epocas")
+    y = (np.log1p(e.scl) - np.log1p(e.scl_basal)).to_numpy()
+    if "artefacto_eda" in e:
+        y = np.where(e.artefacto_eda.to_numpy(dtype=bool), np.nan, y)
+    y = y.reshape(-1, N_EPOCAS)
+    valido = ~np.isnan(y)
+    t = np.where(valido, np.arange(1, N_EPOCAS + 1, dtype=float), np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        tc = t - np.nanmean(t, axis=1, keepdims=True)
+        yc = y - np.nanmean(y, axis=1, keepdims=True)
+        pendiente = np.nansum(tc * yc, axis=1) / np.nansum(tc ** 2, axis=1)
+    rondas_con_datos = valido.reshape(len(y), N_RONDAS, -1).any(axis=2).sum(axis=1)
+    pendiente[rondas_con_datos < 2] = np.nan
+    out = e.iloc[::N_EPOCAS][["id", "episodio", "agente", "feedback"]].reset_index(drop=True)
+    out["pendiente"] = pendiente
+    return out
+
+
+def ensuciar_epocas(epocas, rondas):
+    """Lleva a las epocas la contaminacion que ensuciar() puso en su ronda: si el SCL
+    de la ronda tiene un artefacto, sus epocas tienen el mismo; si se perdio, se
+    pierden. Antes de ensuciar, el SCL de la ronda es la media de sus epocas."""
+    e = epocas.copy()
+    claves = ["id", "episodio", "ronda"]
+    ronda = e[claves].merge(rondas[claves + ["scl_media", "artefacto_eda"]],
+                            on=claves, how="left")
+    limpia = e.groupby(claves).scl.transform("mean").to_numpy()
+    artefacto = ronda.artefacto_eda.to_numpy(dtype=bool)
+    factor = np.where(artefacto, ronda.scl_media.to_numpy() / limpia, 1.0)
+    e["scl"] = np.where(ronda.scl_media.isna(), np.nan, e.scl.to_numpy() * factor)
+    e["artefacto_eda"] = artefacto
+    return e
+
+
 # ---------------------------------------------------------------- rondas
 def generar_rondas(participantes, episodios, rng):
+    """Una fila por ronda con las medidas fisiologicas y el autoinforme subyacente.
+    Devuelve (rondas, epocas): el SCL de cada ronda es la media de sus epocas."""
     # factor comun participante-nivel para el acople debil autoinforme-fisiologia
     comun = rng.normal(0, 1, N_PARTICIPANTES)
     carga = np.sqrt(R_AUTOINFORME_FISIO)
@@ -267,8 +378,11 @@ def generar_rondas(participantes, episodios, rng):
         z[v] = dict(zip(participantes.id,
                         signo * carga * comun + np.sqrt(1 - carga ** 2) * propio))
 
+    # Flujo de azar propio: cambiar la ventana o el ruido del SCL no mueve el resto.
+    epocas = generar_epocas(episodios, z["scl_media"], rng.spawn(1)[0])
+    scl_ronda = epocas.groupby(["id", "episodio", "ronda"]).scl.mean().to_dict()
+
     genero = dict(zip(participantes.id, participantes.genero))
-    centro_ronda = (N_RONDAS + 1) / 2
     rho_pre = R_PRE_AUTOINFORME
 
     filas = []
@@ -279,11 +393,15 @@ def generar_rondas(participantes, episodios, rng):
                         agente=ep.agente, feedback=ep.feedback)
             rampa = r / N_RONDAS          # el efecto se acumula a lo largo del episodio
             for v, cfg in VARIABLES.items():
+                if v == "scl_media":
+                    fila[v] = float(scl_ronda[(ep.id, ep.episodio, r)])
+                    continue
                 de_b, de_w = reparto_varianza(cfg["de"])
                 ef = efecto_condicion(cfg["delta"], ep.agente, ep.feedback) * rampa
 
-                # moderacion por genero, solo en medidas electrodermicas
-                if v.startswith(("scl", "ns_scr", "scr_amp")) and genero[ep.id] == "mujer":
+                # moderacion por genero, solo en medidas electrodermicas con efecto
+                # de condicion: la frecuencia y la amplitud de las SCR
+                if v.startswith(("ns_scr", "scr_amp")) and genero[ep.id] == "mujer":
                     ef *= MOD_GENERO_EDA
 
                 zi = z[v][ep.id]
@@ -306,16 +424,7 @@ def generar_rondas(participantes, episodios, rng):
                     # medidas positivas: nivel y efecto proporcionales, residuo con
                     # coeficiente de variacion constante
                     nivel = cfg["base"] * factor_persona(zi, de_b / cfg["base"])
-                    media = nivel * (1 + ef / cfg["base"])
-
-                    # SCL: sin efecto de nivel, el efecto esta en la pendiente (Kelly).
-                    # Centrada en la ronda media, la pendiente no mueve el promedio.
-                    if v == "scl_media":
-                        hab = HABITUACION_SCL * (r - centro_ronda)
-                        hab *= 1 - atenuacion_habituacion(ep.agente, ep.feedback)
-                        media += hab + DERIVA_SCL_POR_EPISODIO * (ep.episodio - 1)
-
-                    media = max(media, 1e-3)
+                    media = max(nivel * (1 + ef / cfg["base"]), 1e-3)
                     val = muestrear(cfg["dist"], media,
                                     media * cv_residual(cfg["de"], cfg["base"]), 1, rng)[0]
                 fila[v] = float(val)
@@ -329,7 +438,7 @@ def generar_rondas(participantes, episodios, rng):
     # agregar_autoinforme necesita a la misma persona para lo que se mide fuera de las rondas
     rondas.attrs["z"] = z
     rondas.attrs["comun"] = dict(zip(participantes.id, comun))
-    return rondas
+    return rondas, epocas
 
 
 # ---------------------------------------------------------------- autoinforme
@@ -435,7 +544,8 @@ def agregar_medidas_post(episodios, participantes, rng):
 
 # ---------------------------------------------------------------- contaminacion
 def ensuciar(rondas, episodios, participantes, rng):
-    """Introduce las imperfecciones descritas en A5.1."""
+    """Introduce las imperfecciones descritas en A3.1. Las epocas las reciben despues,
+    con ensuciar_epocas()."""
     rondas = rondas.copy()
     episodios = episodios.copy()
     n = len(rondas)
@@ -472,7 +582,7 @@ def ensuciar(rondas, episodios, participantes, rng):
 def contrastes_realizados(rondas, episodios):
     """Los tres contrastes del plan de analisis sobre el conjunto generado, en la
     metrica que corresponde a un diseno intra-sujeto. Sirve de verificacion: la
-    potencia esperada de cada uno esta en 00_potencia.py y en el Anexo A6."""
+    potencia esperada de cada uno esta en 00_potencia.py y en el Anexo A4."""
     from scipy import stats
     r = rondas.copy()
     r["ln_hf"] = np.log(r["hf"].clip(lower=1))
@@ -491,13 +601,30 @@ def contrastes_realizados(rondas, episodios):
     return out
 
 
+def contraste_h1b(epocas, rondas):
+    """H1b sobre el conjunto generado: la pendiente, humano menos IA bajo rechazo, y el
+    nivel medio del SCL, que H1b declara nulo. Sin las rondas con artefacto."""
+    from scipy import stats
+    def agente_en_rechazo(tabla, v):
+        c = tabla.dropna(subset=[v]).groupby(["id", "agente", "feedback"])[v].mean().unstack([1, 2])
+        return (c[("humano", "rechazo")] - c[("ia", "rechazo")]).dropna()
+    limpias = rondas[~rondas.artefacto_eda]
+    out = {}
+    for nombre, x in (("pendiente", agente_en_rechazo(pendiente_kelly(epocas), "pendiente")),
+                      ("nivel", agente_en_rechazo(limpias, "scl_media"))):
+        out[nombre] = (round(float(x.mean() / x.std(ddof=1)), 3),
+                       float(stats.ttest_1samp(x, 0).pvalue))
+    return out
+
+
 # ---------------------------------------------------------------- main
 def main():
-    participantes, ls = generar_participantes(rng)
-    episodios = generar_episodios(participantes, ls, rng)
-    rondas = generar_rondas(participantes, episodios, rng)
+    participantes = generar_participantes(rng)
+    episodios = generar_episodios(participantes, rng)
+    rondas, epocas = generar_rondas(participantes, episodios, rng)
     episodios = agregar_medidas_post(episodios, participantes, rng)
     rondas, episodios = ensuciar(rondas, episodios, participantes, rng)
+    epocas = ensuciar_epocas(epocas, rondas)
     episodios = agregar_autoinforme(episodios, rondas, np.random.default_rng([SEMILLA, 2]))
     rondas_medidas = rondas.drop(columns=list(AUTOINFORME))
 
@@ -512,7 +639,11 @@ def main():
             "r_pre_autoinforme": R_PRE_AUTOINFORME,
             "mod_genero_eda": MOD_GENERO_EDA,
             "deriva_scl_por_episodio": DERIVA_SCL_POR_EPISODIO,
-            "habituacion_scl": HABITUACION_SCL,
+            "n_epocas": N_EPOCAS,
+            "rho_epoca": RHO_EPOCA,
+            "elevacion_tarea": ELEVACION_TAREA,
+            "kelly_dz": KELLY_DZ,
+            "habituacion_scl_epoca": HABITUACION_SCL_EPOCA,
             "atenuacion_rechazo": ATENUACION_RECHAZO,
             "prop_faltantes": PROP_FALTANTES,
             "prop_artefacto_eda": PROP_ARTEFACTO_EDA,
@@ -548,20 +679,25 @@ def main():
         participantes.to_excel(w, sheet_name="participantes", index=False)
         episodios.to_excel(w, sheet_name="episodios", index=False)
         rondas_medidas.to_excel(w, sheet_name="rondas", index=False)
+        epocas.to_excel(w, sheet_name="epocas", index=False)
         params.to_excel(w, sheet_name="parametros", index=False)
     for nom, df in [("participantes", participantes), ("episodios", episodios),
-                    ("rondas", rondas_medidas)]:
+                    ("rondas", rondas_medidas), ("epocas", epocas)]:
         df.to_csv(SALIDA / f"datos_crudos_{nom}.csv", index=False)
 
     print(f"semilla {SEMILLA}")
     print(f"participantes {len(participantes)} | episodios {len(episodios)} "
-          f"| rondas {len(rondas)}")
+          f"| rondas {len(rondas)} | epocas {len(epocas)}")
     print(f"escrito: {xlsx}")
     print("\ncontrastes realizados en este conjunto (d de Cohen pareado y p)")
     print(f"  {'variable':<13}{'H1a agente|rechazo':<24}{'H1d interaccion':<24}{'principal'}")
     for v, r in contrastes_realizados(rondas, episodios).items():
         celdas = "".join(f"d={r[k][0]:<7} p={r[k][1]:<9.4f}" for k in ("H1a", "H1d", "principal"))
         print(f"  {v:<13}{celdas}")
+    h1b = contraste_h1b(epocas, rondas)
+    print("\nH1b, humano - IA bajo rechazo (d de Cohen pareado y p)")
+    print(f"  pendiente del SCL   d={h1b['pendiente'][0]:<7} p={h1b['pendiente'][1]:.4f}")
+    print(f"  nivel medio del SCL d={h1b['nivel'][0]:<7} p={h1b['nivel'][1]:.4f}   (nulo declarado)")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-Audit of a simulated dataset against Annex A5 of the paper.
+Audit of a simulated dataset against Annex A3 of the paper.
 
     python3 auditoria.py <folder with datos_crudos_*.csv>
 
@@ -20,6 +20,8 @@ ep = pd.read_csv(FOLDER / "datos_crudos_episodios.csv")
 ro = pd.read_csv(FOLDER / "datos_crudos_rondas.csv")
 pa_path = FOLDER / "datos_crudos_participantes.csv"
 pa = pd.read_csv(pa_path) if pa_path.exists() else None
+epochs_path = FOLDER / "datos_crudos_epocas.csv"
+epo = pd.read_csv(epochs_path) if epochs_path.exists() else None
 
 EDA = ["scl_media", "ns_scr_n", "scr_amp_media"]
 HRV = ["rr_medio", "rmssd", "sdrr", "pnn50", "hf", "lf_hf"]
@@ -108,6 +110,25 @@ print("  by episode", c.groupby("episodio").scl_media.mean().round(2).tolist())
 slope = c.groupby(["feedback", "ronda"]).scl_media.mean().unstack().round(2)
 print(slope.to_string())
 
+if epo is not None:
+    title("SCL epochs: the data H1b analyses")
+    clean_epochs = epo[~epo.artefacto_eda & epo.scl.notna()].copy()
+    print("  epochs %d, per episode %d | SCL min %.2f uS | artefact %.1f%%, missing %.1f%%"
+          % (len(epo), epo.epoca.max(), epo.scl.min(), 100 * epo.artefacto_eda.mean(),
+             100 * epo.scl.isna().mean()))
+    print("  task lift over rest: %.2f uS" % (clean_epochs.scl - clean_epochs.scl_basal).mean())
+    clean_epochs["y"] = np.log1p(clean_epochs.scl) - np.log1p(clean_epochs.scl_basal)
+    slope = clean_epochs.groupby(["id", "episodio", "agente", "feedback"]).apply(
+        lambda g: np.polyfit(g.epoca, g.y, 1)[0] if g.ronda.nunique() >= 2 else np.nan,
+        include_groups=False).rename("slope").reset_index()
+    print("  slope of log(SCL+1) - log(basal+1) per epoch, at least two rounds with data,")
+    print("  by condition (x1000):")
+    print((slope.groupby(["feedback", "agente"]).slope.mean() * 1000).round(2).to_string())
+    m = slope.groupby(["id", "agente", "feedback"]).slope.mean().unstack([1, 2])
+    h1b = (m[("humano", "rechazo")] - m[("ia", "rechazo")]).dropna()
+    print("  H1b human - AI under rejection: d=%.2f p=%.4f"
+          % (h1b.mean() / h1b.std(), stats.ttest_1samp(h1b, 0).pvalue))
+
 title("gender moderation on electrodermal measures (rejection, human)")
 if pa is not None:
     m = c.merge(pa[["id", "genero"]], on="id")
@@ -123,7 +144,7 @@ print("  mean across pairs: %.3f" % np.mean(
     [(SELF_SIGN[s] * person[s]).corr(STRESS_SIGN[v] * person[v]) for s in SELF for v in EDA + HRV]))
 print("  SUDS before with SUDS after: %.2f" % person.suds_pre.corr(person.suds_post))
 
-title("contamination (A5.1)")
+title("contamination (A3.1)")
 print("  missing per variable (paper: 3 to 5%):",
       {v: round(100 * ro[v].isna().mean(), 1) for v in ALL},
       {v: round(100 * ep[v].isna().mean(), 1) for v in SELF})

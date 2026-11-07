@@ -1,0 +1,13 @@
+Objetivo: d_z = 0.449 en el efecto de retroalimentacion sobre la pendiente
+N = 200, ventana de 18 epocas de 10 s
+
+rho    pendiente uS/epoca   d_z retroalimentacion   d_z H1b   potencia H1b  
+0.80   -0.1525              0.446                   0.231     0.89          
+0.90   -0.1449              0.445                   0.230     0.89             <- RHO_EPOCA del generador
+0.95   -0.1206              0.444                   0.228     0.90          
+
+d_z de H1b que se sigue de la calibracion: 0.449 x 0.7 / raiz(2) = 0.222
+  potencia de una t pareada con N = 150: 0.77
+  potencia de una t pareada con N = 200: 0.88
+
+IC 95 % del d_z de Kelly (N = 41): [0.12, 0.77]

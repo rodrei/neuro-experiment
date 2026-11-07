@@ -1,5 +1,5 @@
 """
-Checks that the generator does what Annex A5 and the hypotheses say.
+Checks that the generator does what Annex A3 and the hypotheses say.
 
     python3 -m unittest test_simular -v      (from simulation/, with numpy, pandas, scipy)
 
@@ -7,6 +7,7 @@ Not part of the web suites: it needs the scientific stack.
 """
 
 import importlib.util
+import json
 import unittest
 from pathlib import Path
 
@@ -14,25 +15,29 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
+PROTOCOL = HERE.parent / "protocol"
 spec = importlib.util.spec_from_file_location("sim", HERE / "01_simular.py")
 sim = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sim)
 
 
-def generate(n=150, seed=20261103):
+def generate(n=200, seed=20261103):
     sim.N_PARTICIPANTES = n
     sim.N_MUJERES = int(round(n * 0.54))
     rng = np.random.default_rng(seed)
-    participants, square = sim.generar_participantes(rng)
-    episodes = sim.generar_episodios(participants, square, rng)
-    rounds = sim.generar_rondas(participants, episodes, rng)
+    participants = sim.generar_participantes(rng)
+    episodes = sim.generar_episodios(participants, rng)
+    rounds, epochs = sim.generar_rondas(participants, episodes, rng)
     episodes_full = sim.agregar_medidas_post(episodes, participants, rng)
     dirty_rounds, dirty_episodes = sim.ensuciar(rounds, episodes_full, participants, rng)
+    dirty_epochs = sim.ensuciar_epocas(epochs, dirty_rounds)
     measured = sim.agregar_autoinforme(episodes_full, rounds,
                                        np.random.default_rng([seed, 2]), faltantes=0)
     dirty_measured = sim.agregar_autoinforme(dirty_episodes, dirty_rounds,
                                              np.random.default_rng([seed, 2]))
-    return participants, measured, rounds, dirty_rounds, dirty_measured
+    return dict(participants=participants, episodes=measured, rounds=rounds,
+                epochs=epochs, dirty_rounds=dirty_rounds, dirty_episodes=dirty_measured,
+                dirty_epochs=dirty_epochs)
 
 
 def icc(rounds, variable):
@@ -50,18 +55,54 @@ class Base(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        (cls.participants, cls.episodes, cls.rounds,
-         cls.dirty_rounds, cls.dirty_episodes) = generate()
+        for name, value in generate().items():
+            setattr(cls, name, value)
+
+
+WEB_CONDITION = {"human_validation": ("humano", "validacion"),
+                 "human_rejection": ("humano", "rechazo"),
+                 "ai_validation": ("ia", "validacion"),
+                 "ai_rejection": ("ia", "rechazo")}
+WEB_DOMAIN = {"work_study": "trabajo_estudio", "friendship": "amistad",
+              "family_partner": "familia_pareja", "self": "uno_mismo"}
 
 
 class TestDesign(Base):
+
+    def test_the_condition_order_is_the_web_square(self):
+        web = json.loads((PROTOCOL / "sequences.json").read_text())
+        for row, sequence in enumerate(sim.CUADRADO_CONDICIONES):
+            self.assertEqual([sim.CONDICIONES[c] for c in sequence],
+                             [WEB_CONDITION[c] for c in web[str(row + 1)]])
+
+    def test_the_domain_square_is_the_web_square(self):
+        web = json.loads((PROTOCOL / "domain_sequences.json").read_text())
+        for row, domains in enumerate(sim.CUADRADO_DOMINIOS):
+            expected = {WEB_CONDITION[c]: WEB_DOMAIN[d] for c, d in web[str(row + 1)].items()}
+            self.assertEqual({sim.CONDICIONES[c]: sim.DOMINIOS[d] for c, d in enumerate(domains)},
+                             expected)
+
+    def test_each_condition_follows_each_other_once(self):
+        """Williams: carryover from one episode to the next is balanced."""
+        pairs = [(row[k], row[k + 1]) for row in sim.CUADRADO_CONDICIONES for k in range(3)]
+        self.assertEqual(len(set(pairs)), 12)
+
+    def test_each_condition_appears_once_in_each_position(self):
+        cross = pd.crosstab(self.episodes.episodio, [self.episodes.agente, self.episodes.feedback])
+        self.assertTrue((cross.values == len(self.participants) // 4).all())
 
     def test_domains_are_not_confounded_with_conditions(self):
         """Paper: the assignment of domains to conditions is counterbalanced."""
         cross = pd.crosstab(self.episodes.dominio,
                             [self.episodes.agente, self.episodes.feedback])
-        self.assertGreater(cross.values.min(), 30)
-        self.assertLess(cross.values.max(), 45)
+        self.assertGreater(cross.values.min(), 40)
+        self.assertLess(cross.values.max(), 60)
+
+    def test_the_sample_is_the_papers(self):
+        fresh = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fresh)
+        self.assertEqual(fresh.N_PARTICIPANTES, 200)
+        self.assertEqual(fresh.N_MUJERES, 108)
 
     def test_each_participant_has_four_different_domains(self):
         per_person = self.episodes.groupby("id").dominio.nunique()
@@ -74,7 +115,7 @@ class TestDesign(Base):
 class TestDistributions(Base):
 
     def test_within_subject_correlation_holds_for_every_variable(self):
-        """A5.3: r = 0.50 for the repeated measures."""
+        """A3.3: r = 0.50 for the repeated measures."""
         for variable in sim.VARIABLES:
             value = icc(self.rounds, variable)
             self.assertGreater(value, 0.35, variable)
@@ -88,7 +129,7 @@ class TestDistributions(Base):
         self.assertLess(self.rounds.lf_hf.max(), 40)
 
     def test_skewed_variables_are_skewed_and_keep_the_table_mean(self):
-        """A5.3: not Gaussian except for the self-reports; A5.5: the base means."""
+        """A3.3: not Gaussian except for the self-reports; A3.5: the base means."""
         low = self.rounds[self.rounds.feedback == "validacion"]
         for variable, base in (("hf", 657.0), ("lf_hf", 2.8), ("rmssd", 42.0)):
             values = low[variable]
@@ -99,7 +140,7 @@ class TestDistributions(Base):
 class TestCoupling(Base):
 
     def test_self_report_and_physiology_correlate_weakly(self):
-        """A5.3: around r = 0.15, signed so more stress is positive in both."""
+        """A3.3: around r = 0.15, signed so more stress is positive in both."""
         person = self.rounds.groupby("id")[list(sim.VARIABLES)].mean()
         stress = {v: (-1 if c["delta"] < 0 else 1) for v, c in sim.VARIABLES.items()}
         physiology = {v: s for v, s in stress.items() if v not in sim.AUTOINFORME}
@@ -109,7 +150,7 @@ class TestCoupling(Base):
         self.assertLess(np.mean(values), 0.25)
 
     def test_the_situation_rating_predicts_the_episode_self_report(self):
-        """It is the paper's covariate: A6 counts on it to reduce the variance."""
+        """It is the paper's covariate: A4 counts on it to reduce the variance."""
         mean_suds = self.rounds.groupby(["id", "episodio"]).suds.mean().reset_index()
         joined = self.episodes.merge(mean_suds, on=["id", "episodio"])
         r = joined.pre_malestar.corr(joined.suds)
@@ -127,7 +168,7 @@ class TestSelfReport(Base):
             self.assertIn(column, self.episodes.columns)
 
     def test_there_is_one_value_per_episode(self):
-        self.assertEqual(len(self.episodes), 600)
+        self.assertEqual(len(self.episodes), 4 * len(self.participants))
         self.assertEqual(self.episodes.suds_post.isna().sum(), 0)
 
     def test_the_scales_stay_in_their_range(self):
@@ -171,28 +212,108 @@ class TestSelfReport(Base):
             self.assertLess(share, 0.07, column)
 
 
+class TestEpochs(Base):
+    """Section 4: SCL in 10 s epochs over a fixed window, the data H1b analyses."""
+
+    def test_every_episode_has_the_whole_window(self):
+        self.assertEqual(len(self.epochs), len(self.episodes) * sim.N_EPOCAS)
+        per_episode = self.epochs.groupby(["id", "episodio"]).epoca.agg(["min", "max", "count"])
+        self.assertTrue((per_episode["count"] == sim.N_EPOCAS).all())
+        self.assertTrue((per_episode["max"] == sim.N_EPOCAS).all())
+
+    def test_conductance_is_always_positive(self):
+        """So log(SCL + 1) never needs clipping."""
+        self.assertGreater(self.epochs.scl.min(), 0)
+        self.assertGreater(self.epochs.scl_basal.min(), 0)
+
+    def test_the_round_value_is_the_mean_of_its_epochs(self):
+        means = self.epochs.groupby(["id", "episodio", "ronda"]).scl.mean()
+        rounds = self.rounds.set_index(["id", "episodio", "ronda"]).scl_media
+        self.assertTrue(np.allclose(rounds.loc[means.index], means))
+
+    def test_the_task_raises_conductance_above_rest(self):
+        lift = (self.epochs.scl - self.epochs.scl_basal).mean()
+        self.assertAlmostEqual(lift, sim.ELEVACION_TAREA, delta=0.3)
+
+    def test_neighbouring_epochs_are_alike(self):
+        """The tonic level moves slowly: AR(1) residual, not independent epochs."""
+        log = np.log(self.epochs.scl.to_numpy()).reshape(-1, sim.N_EPOCAS)
+        log = log - log.mean(axis=1, keepdims=True)
+        r = np.corrcoef(log[:, :-1].ravel(), log[:, 1:].ravel())[0, 1]
+        self.assertGreater(r, 0.6)
+
+    def test_an_artefact_in_a_round_reaches_its_epochs(self):
+        e, r = self.dirty_epochs, self.dirty_rounds
+        flagged = r[r.artefacto_eda & r.scl_media.notna()].iloc[0]
+        epochs = e[(e.id == flagged.id) & (e.episodio == flagged.episodio)
+                   & (e.ronda == flagged.ronda)]
+        self.assertTrue(epochs.artefacto_eda.all())
+        self.assertAlmostEqual(epochs.scl.mean(), flagged.scl_media)
+
+    def test_a_round_lost_is_lost_in_its_epochs(self):
+        e, r = self.dirty_epochs, self.dirty_rounds
+        lost = r[r.scl_media.isna()].iloc[0]
+        epochs = e[(e.id == lost.id) & (e.episodio == lost.episodio) & (e.ronda == lost.ronda)]
+        self.assertTrue(epochs.scl.isna().all())
+
+    def test_the_slope_leaves_out_artefacts_and_needs_two_rounds(self):
+        e = self.epochs[(self.epochs.id == "P001") & (self.epochs.episodio == 1)].copy()
+        clean = sim.pendiente_kelly(e).pendiente[0]
+        e["artefacto_eda"] = e.ronda == 2
+        self.assertFalse(np.isnan(sim.pendiente_kelly(e).pendiente[0]))
+        self.assertNotEqual(sim.pendiente_kelly(e).pendiente[0], clean)
+        e["artefacto_eda"] = e.ronda >= 2
+        self.assertTrue(np.isnan(sim.pendiente_kelly(e).pendiente[0]))
+
+    def test_subtracting_the_baseline_does_not_change_the_slope(self):
+        e = self.epochs.head(sim.N_EPOCAS * 4).copy()
+        before = sim.pendiente_kelly(e).pendiente
+        e["scl_basal"] = e.scl_basal * 1.7
+        self.assertTrue(np.allclose(sim.pendiente_kelly(e).pendiente, before))
+
+
 class TestH1b(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.rounds = generate(n=1500, seed=7)[2]
-        cls.wide = cls.rounds.pivot_table(
-            index=["id", "episodio", "agente", "feedback"],
-            columns="ronda", values="scl_media").reset_index()
-        cls.wide["slope"] = (cls.wide[3] - cls.wide[1]) / 2
+        data = generate(n=1500, seed=7)
+        cls.rounds = data["rounds"]
+        cls.slopes = sim.pendiente_kelly(data["epochs"])
 
     def _slope(self, feedback, agent):
-        row = self.wide[(self.wide.feedback == feedback) & (self.wide.agente == agent)]
-        return row.slope.mean()
+        s = self.slopes
+        return s[(s.feedback == feedback) & (s.agente == agent)].pendiente.mean()
 
-    def test_human_rejection_habituates_less_than_ai_rejection(self):
-        difference = self._slope("rechazo", "humano") - self._slope("rechazo", "ia")
-        self.assertGreater(difference, 0.05)
+    def test_rejection_habituates_less_and_more_so_from_a_person(self):
+        self.assertLess(self._slope("validacion", "humano"), self._slope("rechazo", "ia"))
+        self.assertLess(self._slope("rechazo", "ia"), self._slope("rechazo", "humano"))
+        self.assertLess(self._slope("rechazo", "humano"), 0)
+
+    def test_the_agent_makes_no_difference_in_validation(self):
+        difference = self._slope("validacion", "humano") - self._slope("validacion", "ia")
+        self.assertLess(abs(difference), 0.002)
 
     def test_conductance_has_no_level_effect(self):
-        """H1b and Iffland: the effect is in the slope, not in the mean."""
-        level = self.rounds.groupby(["agente", "feedback"]).scl_media.mean()
-        self.assertLess(level.max() - level.min(), 0.15)
+        """H1b and Iffland: the effect is in the slope, not in the mean. Every cell
+        against AI validation, within three standard errors of zero."""
+        c = self.rounds.groupby(["id", "agente", "feedback"]).scl_media.mean().unstack([1, 2])
+        for cell in c.columns.drop(("ia", "validacion")):
+            x = c[cell] - c[("ia", "validacion")]
+            self.assertLess(abs(x.mean()), 3 * x.std() / np.sqrt(len(x)), cell)
+
+
+class TestCalibration(unittest.TestCase):
+    """The slope reproduces Kelly et al.'s effect size, analysed as they analyse it."""
+
+    def test_the_feedback_effect_on_the_slope_is_kellys(self):
+        values = []
+        for seed in range(8):
+            slopes = sim.pendiente_kelly(generate(n=200, seed=1000 + seed)["epochs"])
+            c = slopes.pivot_table(index="id", columns=["agente", "feedback"], values="pendiente")
+            x = ((c[("humano", "rechazo")] + c[("ia", "rechazo")])
+                 - (c[("humano", "validacion")] + c[("ia", "validacion")])) / 2
+            values.append(x.mean() / x.std(ddof=1))
+        self.assertAlmostEqual(np.mean(values), sim.KELLY_DZ, delta=0.06)
 
 
 class TestContamination(Base):
